@@ -190,15 +190,20 @@ public class QuorumPeerConfig {
             /* Read entire config file as initial configuration */
             initialConfig = new String(Files.readAllBytes(configFile.toPath()));
 
-            // 解析配置
+            /**
+             * 解析静态配置文件
+             * 3.5版本后支持动态修改文件，下面读取的是动态配置文件
+             */
             parseProperties(cfg);
         } catch (IOException e) {
             throw new ConfigException("Error processing " + path, e);
         } catch (IllegalArgumentException e) {
             throw new ConfigException("Error processing " + path, e);
         }
-
-        // 上面是基于老版的配置文件去解析配置，下面是基于新版的动态配置文件去解析配置
+        /**
+         *  3.5版本之前，zk仅支持读取静态配置文件，这样每次扩容或者缩容，或者想修改某个配置了，就需要关停zk，修改完了重启
+         *  3.5版本之后，支持动态的修改配置文件，也就是修改了不用重启了，执行一个命令就可以，具体见笔记
+         */
         if (dynamicConfigFileStr != null) {
             try {
                 Properties dynamicCfg = new Properties();

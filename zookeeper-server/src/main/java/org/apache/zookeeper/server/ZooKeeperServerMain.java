@@ -148,13 +148,17 @@ public class ZooKeeperServerMain {
                 jvmPauseMonitor = new JvmPauseMonitor(config);
             }
 
-            //
+            // 里面只是做了一些初始化配置，实例化 + 初始化
             final ZooKeeperServer zkServer = new ZooKeeperServer(jvmPauseMonitor, txnLog, config.tickTime, config.minSessionTimeout, config.maxSessionTimeout, config.listenBacklog, null, config.initialConfig);
             txnLog.setServerStats(zkServer.serverStats());
 
             // Registers shutdown handler which will be used to know the
             // server error or shutdown state changes.
-            final CountDownLatch shutdownLatch = new CountDownLatch(1);
+            final CountDownLatch shutdownLatch = new CountDownLatch(1); // 注意：值为 1 ，就是为了不让zk进程运行完，常驻进程用
+            /**
+             * ZooKeeperServerShutdownHandler 代码很简单，就一个方法：shutdownLatch.countDown()，就是解阻塞，也可以理解为zk进程结束了
+             *  最下面的代码有  shutdownLatch.await(); 就是保持进程不结束，也就是让那些socket一直监听客户端连接
+             */
             zkServer.registerServerShutdownHandler(new ZooKeeperServerShutdownHandler(shutdownLatch));
 
             // Start Admin server
@@ -163,7 +167,7 @@ public class ZooKeeperServerMain {
             adminServer.start();
 
             boolean needStartZKServer = true;
-            if (config.getClientPortAddress() != null) {
+            if (config.getClientPortAddress() != null) {// 就是配置文件中设置的端口号，让客户端连接的端口号
                 // 默认拿到NIOServerCnxnFactory
                 cnxnFactory = ServerCnxnFactory.createFactory(); // NIOServerCnxnFactory
                 // ServerSocketChannel bind地址和端口 ,设置最大客户端连接限制数

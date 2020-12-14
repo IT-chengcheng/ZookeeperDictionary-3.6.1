@@ -309,6 +309,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         this.txnLogFactory.setServerStats(this.serverStats);
         this.zkDb = zkDb;
         this.tickTime = tickTime;
+        // 这里设置了一个最小，一个最大，其实就是设置的一个范围，限定 程序员在连接zk的客户端的代码设置的超时时间
+        // 如果程序员在客户端设置的超时时间在这个范围之内，那就用程序员设置的时间，如果不在这个范围内，要不取找个最小的，要取不最大的
         setMinSessionTimeout(minSessionTimeout);
         setMaxSessionTimeout(maxSessionTimeout);
         this.listenBacklog = clientPortListenBacklog;
@@ -322,7 +324,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         getChildrenResponseCache = new ResponseCache(Integer.getInteger(
             GET_CHILDREN_RESPONSE_CACHE_SIZE,
             ResponseCache.DEFAULT_RESPONSE_CACHE_SIZE));
-
+        // 就是conf配置文件的，初始配置。（后面可能会动态修改）
         this.initialConfig = initialConfig;
 
         this.requestPathMetricsCollector = new RequestPathMetricsCollector();
