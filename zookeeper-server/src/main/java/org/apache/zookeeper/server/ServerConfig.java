@@ -95,8 +95,14 @@ public class ServerConfig {
         QuorumPeerConfig config = new QuorumPeerConfig();
         config.parse(path);
 
-        // let qpconfig parse the file and then pull the stuff we are
+        // let qpconfig parse the file and then pull the stuff（/stʌf/  东西；材料；填充物；素材资料） we are
         // interested in
+        /**
+         * 看上面的因为解释意思很明显，只拿自己需要的值
+         * 一共有两个配置类
+         *  QuorumPeerConfig  这是真正的配置类，是读取的conf文件，然后转化成为对象
+         *  ServerConifg  这是真正用到的配置类，他里面的值比QuorumPeerConfig少，但都是感兴趣的或者说是用得到的
+         */
         readFrom(config);
     }
 

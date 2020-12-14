@@ -102,7 +102,7 @@ public class ZooKeeperServerMain {
             LOG.warn("Unable to register log4j JMX control", e);
         }
 
-        // 从配置文件中解析出ServerConfig
+        // 从配置文件中解析出ServerConfig，真正解析conf文件的是QuorumPeerConfig，ServerConfig再从QuorumPeerConfig拿需要的值
         ServerConfig config = new ServerConfig();
         if (args.length == 1) {
             config.parse(args[0]);

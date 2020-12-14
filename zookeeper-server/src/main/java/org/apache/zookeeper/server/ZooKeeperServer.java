@@ -1424,19 +1424,28 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             throw new CloseRequestException(msg, ServerCnxn.DisconnectReason.NOT_READ_ONLY_CLIENT);
         }
 
-        // 客户端设置的sessionTimeout
+        // 客户端连接时 设置的sessionTimeout，就是 new ZooKeeper(IP, sessionTimeout，watch)
         int sessionTimeout = connReq.getTimeOut();
         byte[] passwd = connReq.getPasswd();
 
+        // 在服务端的 conf文件里配置的
         int minSessionTimeout = getMinSessionTimeout();
-        //
         if (sessionTimeout < minSessionTimeout) {
             sessionTimeout = minSessionTimeout;
         }
+
+        // 在服务端的 conf文件里配置的
         int maxSessionTimeout = getMaxSessionTimeout();
         if (sessionTimeout > maxSessionTimeout) {
             sessionTimeout = maxSessionTimeout;
         }
+        /**
+         * 经过以上两步操作达到效果是什么，或者说目的？：就是限定程序员设置客户端与服务端连接超时的时间 minSessionTimeOut < T < maxSessionTimeout
+         * 程序员配置的超时时间必须在两者之间才生效，否则要不就是minSessionTimeOut，要不就是 maxSessionTimeout
+         *   这是zookeeper在QuorumPeerConfig类中设置的默认值，如果程序员不在配置文件中配置下面这俩值，那么默认就是下面的结果
+         *  minSessionTimeout = minSessionTimeout == -1 ? tickTime * 2 : minSessionTimeout;
+         *  maxSessionTimeout = maxSessionTimeout == -1 ? tickTime * 20 : maxSessionTimeout;
+         */
         cnxn.setSessionTimeout(sessionTimeout);
 
         // 在连接还没有正式确立之前，不接受数据
