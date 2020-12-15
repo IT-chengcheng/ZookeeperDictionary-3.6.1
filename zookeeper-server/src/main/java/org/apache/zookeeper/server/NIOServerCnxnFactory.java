@@ -181,8 +181,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         private volatile boolean reconfiguring = false;
 
         public AcceptThread(ServerSocketChannel ss, InetSocketAddress addr, Set<SelectorThread> selectorThreads) throws IOException {
+            // 执行父类方法 打开selector ->  Selector.open()
             super("NIOServerCxnFactory.AcceptThread:" + addr);
             this.acceptSocket = ss;
+            //  这个selector打开操作是在父类  AbstractSelectThread  中做的
             this.acceptKey = acceptSocket.register(selector, SelectionKey.OP_ACCEPT);
             this.selectorThreads = Collections.unmodifiableList(new ArrayList<SelectorThread>(selectorThreads));
             selectorIterator = this.selectorThreads.iterator();
@@ -672,6 +674,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         configureSaslLogin();
 
         maxClientCnxns = maxcc;
+        // 调用的是父类的方法
         initMaxCnxns();
         sessionlessCnxnTimeout = Integer.getInteger(ZOOKEEPER_NIO_SESSIONLESS_CNXN_TIMEOUT, 10000);
         // We also use the sessionlessCnxnTimeout as expiring interval for
@@ -680,9 +683,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         // less than or equal to the timeout.
         cnxnExpiryQueue = new ExpiryQueue<NIOServerCnxn>(sessionlessCnxnTimeout);
         expirerThread = new ConnectionExpirerThread();
-
+       // 获取CPU的核数
         int numCores = Runtime.getRuntime().availableProcessors();
         // 32 cores sweet spot seems to be 4 selector threads
+        // Math.sqrt（25）就是求25的平方根，也就是5，就像上面的英文注释 32 除以 2 = 16，再求平方根 就是 4
         numSelectorThreads = Integer.getInteger(
             ZOOKEEPER_NIO_NUM_SELECTOR_THREADS,
             Math.max((int) Math.sqrt((float) numCores / 2), 1));
@@ -704,6 +708,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
 
         listenBacklog = backlog;
+        /**
+         * 这是才是真正要启动NioSocketServer了，当然也仅仅是开启连接和绑定，还没有执行如下两个方法
+         *  selector.select(timeOut);
+         *  Set<SelectionKey> selectionKeys = selector.selectedKeys()
+         */
         this.ss = ServerSocketChannel.open();
         ss.socket().setReuseAddress(true);
         LOG.info("binding to port {}", addr);
@@ -713,6 +722,10 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             ss.socket().bind(addr, listenBacklog);
         }
         ss.configureBlocking(false);
+        /**
+         * 这是zookeeper自定义线程，里面做了很多操作，比如注册selector ->
+         * ServerSocketChannel.register(selector, SelectionKey.OP_ACCEPT)
+         */
         acceptThread = new AcceptThread(ss, addr, selectorThreads);
     }
 

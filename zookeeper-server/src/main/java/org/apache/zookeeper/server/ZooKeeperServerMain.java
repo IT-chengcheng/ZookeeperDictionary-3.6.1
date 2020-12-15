@@ -110,7 +110,7 @@ public class ZooKeeperServerMain {
             config.parse(args);
         }
 
-        // 运行
+        // 启动zookeeper
         runFromConfig(config);
     }
 
@@ -170,7 +170,11 @@ public class ZooKeeperServerMain {
             if (config.getClientPortAddress() != null) {// 就是配置文件中设置的端口号，让客户端连接的端口号
                 // 默认拿到NIOServerCnxnFactory
                 cnxnFactory = ServerCnxnFactory.createFactory(); // NIOServerCnxnFactory
-                // ServerSocketChannel bind地址和端口 ,设置最大客户端连接限制数
+                /**
+                 * ServerSocketChannel bind地址和端口 ,设置最大客户端连接限制数(默认是60，在QuorumPeerConfig中配置的)
+                 *  这里面初始化了 NIO-socket一些必要东西，比如 ServerSocketChannel.open()，Selector.open()
+                 *  还计算出了需要开启的线程数
+                 */
                 cnxnFactory.configure(config.getClientPortAddress(), config.getMaxClientCnxns(), config.getClientPortListenBacklog(), false);
                 // 启动
                 cnxnFactory.startup(zkServer);
