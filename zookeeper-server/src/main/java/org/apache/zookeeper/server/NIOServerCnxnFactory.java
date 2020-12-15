@@ -120,6 +120,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             super(name);
             // Allows the JVM to shutdown even if this thread is still running.
             setDaemon(true);
+            // 居然是在这里，open（）的
             this.selector = Selector.open();
         }
 
@@ -181,12 +182,15 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         private volatile boolean reconfiguring = false;
 
         public AcceptThread(ServerSocketChannel ss, InetSocketAddress addr, Set<SelectorThread> selectorThreads) throws IOException {
-            // 执行父类方法 打开selector ->  Selector.open()
+            /**
+             * 执行父类AbstractSelectThread  构造方法方法 打开selector ->  Selector.open()
+             */
             super("NIOServerCxnFactory.AcceptThread:" + addr);
             this.acceptSocket = ss;
-            //  这个selector打开操作是在父类  AbstractSelectThread  中做的
+            //  往ServerSocketChannel注册 selector
             this.acceptKey = acceptSocket.register(selector, SelectionKey.OP_ACCEPT);
             this.selectorThreads = Collections.unmodifiableList(new ArrayList<SelectorThread>(selectorThreads));
+            // 这个selectorThreads线程数组，是外面通过CPU的核数计算出来的
             selectorIterator = this.selectorThreads.iterator();
         }
 
@@ -387,11 +391,16 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
                 while (!stopped) {
                     try {
-                        // 查询就绪事件
-                        //
-                        select(); //
+                        /**
+                         * 真正的关键方法 执行了 selector.select()！！！！！！
+                         */
+                        select();
 
-                        // 这个方法会对acceptedQueue队列中的sc向select上注册OP_READ事件
+                        /**
+                         * 这个方法会对acceptedQueue队列中的sc向select上注册OP_READ事件，并且给SelectionKey添加attachment
+                         * 也就是执行  socketChannel.register(selector,SelectionKey.OP_READ);
+                         * acceptedQueue队列中的sc是啥时候加进去的？ 是在 AcceptThread 的 run（）方法里面（一步步看代码）
+                         */
                         processAcceptedConnections();
                         processInterestOpsUpdateRequests();
                     } catch (RuntimeException e) {
@@ -428,6 +437,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         private void select() {
             try {
+                // 这个selector 是在 SelectorThread 的父类 AbstractSelectThread中 selector = Selector.open()
                 selector.select();
                 // 有就绪事件
                 Set<SelectionKey> selected = selector.selectedKeys();
@@ -704,6 +714,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             + (directBufferBytes == 0 ? "gathered writes." : ("" + (directBufferBytes / 1024) + " kB direct buffers."));
         LOG.info(logMsg);
         for (int i = 0; i < numSelectorThreads; ++i) {
+            // 最后会将这个 selector线程数组 传给 AcceptThread ，它里面有个set集合保存
             selectorThreads.add(new SelectorThread(i));
         }
 
@@ -784,13 +795,20 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
 
         // 工作线程池
         if (workerPool == null) {
-            // 注意第三个参数，不指定
+            /**
+             * 注意第三个参数传false，意思是不指定创建线程池的数量。
+             * numWorkerThreads在configure（）赋值，默认是CPU核心数乘以 2。也就是创建2个线程池
+             * 此构造方法里面创建了numWorkerThreads个线程池，放入到属性 ArrayList<ExecutorService> workers
+             */
             workerPool = new WorkerService("NIOWorker", numWorkerThreads, false);
         }
 
-        // 启动selector线程
+        // 启动selector线程，selectorThreads创建是在config（）方法，数量默认是：CPU核心数除以2，再开平方根
         for (SelectorThread thread : selectorThreads) {
             if (thread.getState() == Thread.State.NEW) {
+                /**
+                 * 启动线程，线程的run（）方法里就开始真正的 接收 connect read等等
+                 */
                 thread.start();
             }
         }
@@ -808,7 +826,6 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     }
 
     // 绑定端口，以便接收客户端请求
-    //
     @Override
     public void startup(ZooKeeperServer zks, boolean startServer) throws IOException, InterruptedException {
         // 1. 初始化WorkerService 线程池

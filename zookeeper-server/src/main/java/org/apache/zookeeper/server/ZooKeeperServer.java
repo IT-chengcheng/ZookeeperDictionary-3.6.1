@@ -1100,7 +1100,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     public void enqueueRequest(Request si) {
-        if (requestThrottler == null) {
+        if (requestThrottler == null) {  // requestThrottler是个线程。throttle   /ˈθrɒtl/  节流阀；[车辆] 风门；喉咙
             synchronized (this) {
                 try {
                     // Since all requests are passed to the request
@@ -1699,8 +1699,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             } else {
 
                 // 主逻辑
-                // create /luban 123
-                // create /lubanxx 123
+                // create /tom 123
+                // create /test 123
 
                 Request si = new Request(cnxn, cnxn.getSessionId(), h.getXid(), h.getType(), incomingBuffer, cnxn.getAuthInfo());
 

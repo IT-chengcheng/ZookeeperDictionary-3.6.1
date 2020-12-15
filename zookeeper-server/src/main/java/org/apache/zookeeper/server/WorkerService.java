@@ -47,7 +47,7 @@ public class WorkerService {
 
     private static final Logger LOG = LoggerFactory.getLogger(WorkerService.class);
 
-    private final ArrayList<ExecutorService> workers = new ArrayList<ExecutorService>();
+    private final ArrayList<ExecutorService> workers = new ArrayList<ExecutorService>();  //  /ɪɡˈzekjətər/
 
     private final String threadNamePrefix;
     private int numWorkerThreads;
@@ -68,6 +68,9 @@ public class WorkerService {
         this.threadNamePrefix = (name == null ? "" : name) + "Thread";
         this.numWorkerThreads = numThreads;
         this.threadsAreAssignable = useAssignableThreads;
+        /**
+         * 就是创建了多个线程池，放入到属性 ArrayList<ExecutorService> workers
+         */
         start();
     }
 
@@ -208,7 +211,7 @@ public class WorkerService {
     public void start() {
         if (numWorkerThreads > 0) {
             // false
-            if (threadsAreAssignable) {
+            if (threadsAreAssignable) {// numWorkerThreads   默认是CPU核心数乘以 2
                 for (int i = 1; i <= numWorkerThreads; ++i) {
                     // workers中有numWorkerThreads个线程池，每个线程池中只有一个线程
                     // sessionId % numWorkerThreads。elngth ==  2

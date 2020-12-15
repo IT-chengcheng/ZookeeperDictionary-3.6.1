@@ -168,12 +168,12 @@ public class ZooKeeperServerMain {
 
             boolean needStartZKServer = true;
             if (config.getClientPortAddress() != null) {// 就是配置文件中设置的端口号，让客户端连接的端口号
-                // 默认拿到NIOServerCnxnFactory
+                // 默认拿到NIOServerCnxnFactory，这是一个核心类，负责操作NIOsocket的线程，类似于一个工厂，比如spring的那个DefaultListableBeanfactory
                 cnxnFactory = ServerCnxnFactory.createFactory(); // NIOServerCnxnFactory
                 /**
                  * ServerSocketChannel bind地址和端口 ,设置最大客户端连接限制数(默认是60，在QuorumPeerConfig中配置的)
                  *  这里面初始化了 NIO-socket一些必要东西，比如 ServerSocketChannel.open()，Selector.open()
-                 *  还计算出了需要开启的线程数
+                 *  还计算出了需要开启的线程数等等
                  */
                 cnxnFactory.configure(config.getClientPortAddress(), config.getMaxClientCnxns(), config.getClientPortListenBacklog(), false);
                 // 启动
