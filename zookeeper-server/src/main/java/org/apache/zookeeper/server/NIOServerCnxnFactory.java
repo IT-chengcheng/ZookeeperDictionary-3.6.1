@@ -566,7 +566,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 // 处理key
                 // 到这里，多个客户端请求还是并发处理的
 
-                cnxn.doIO(key); // 顺序
+                    cnxn.doIO(key); // 顺序
 
                 // Check if we shutdown or doIO() closed this connection
                 if (stopped) {
@@ -833,11 +833,14 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         // 3. 启动AcceptThread， 负责接收连接事件
         start();
 
+        // 让zookeeperServer 跟 这个类 互相持有
         setZooKeeperServer(zks);
 
         if (startServer) {
-            // 初始化ZKDatabase，加载数据
-            // 这里还会把之前的session给加载出来，放入到sessionsWithTimeouts中
+            /** 很重要的一个方法，里面做了很多事  zxid
+             *  初始化ZKDatabase，加载数据
+             * 这里还会把之前的session给加载出来，放入到sessionsWithTimeouts中
+             */
             zks.startdata();
 
             // 1. 创建sessionTracker

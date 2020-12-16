@@ -472,7 +472,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
          * the server could pick its zxid for its initial vote.
          * It does it by invoking QuorumPeer#getLastLoggedZxid.
          * Consequently, we don't need to initialize it once more
-         * and avoid the penalty of loading it a second time. Not
+         * and avoid the penalty处罚 of loading it a second time. Not
          * reloading it is particularly important for applications
          * that host a large database.
          *
@@ -660,6 +660,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     public void startdata() throws IOException, InterruptedException {
         //check to see if zkDb is not null
         if (zkDb == null) {
+            // this.txnLogFactory 在哪里实例化的？ 在zookeepeerServerMain -> config()
+            // ->   new FileTxnSnapLog(config.dataLogDir, config.dataDir)
             zkDb = new ZKDatabase(this.txnLogFactory);
         }
         if (!zkDb.isInitialized()) {
@@ -674,9 +676,10 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         if (sessionTracker == null) {
             createSessionTracker();
         }
+        //监控session
         startSessionTracker();
 
-        // 设置RequestProcessor chain
+        // 设置RequestProcessor chain,并且开启第一个线程  ((PrepRequestProcessor) firstProcessor).start();
         setupRequestProcessors();
 
         // RequestThrottler是一个线程，用来进行限流，并调用firstRequestProcessor来处理请求

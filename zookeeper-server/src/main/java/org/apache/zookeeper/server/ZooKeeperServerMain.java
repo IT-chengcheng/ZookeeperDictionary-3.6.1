@@ -201,10 +201,13 @@ public class ZooKeeperServerMain {
 
             // Watch status of ZooKeeper server. It will do a graceful shutdown
             // if the server is not running or hits an internal error.
-            // zkServer被shutdown时，这里就会解阻塞
+            /**
+             * 不让程序运行结束，也就是阻塞住
+             * zkServer被shutdown时，这里就会解阻塞
+             */
             shutdownLatch.await();
 
-            // zkServer关闭了，其他东西也得关闭
+            // 能走到这，说明上面解阻塞了，那么 zkServer关闭了，其他东西也得关闭
             shutdown();
 
             if (cnxnFactory != null) {
