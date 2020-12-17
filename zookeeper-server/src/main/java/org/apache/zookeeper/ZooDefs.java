@@ -34,7 +34,9 @@ public class ZooDefs {
 
     @InterfaceAudience.Public
     public interface OpCode {
-
+        /**
+         * 原来这就是所谓的操作类型，就是一个操作码，每次发送请求的时候，放在请求头里，作为一个动作标识
+         */
         int notification = 0;
 
         int create = 1;

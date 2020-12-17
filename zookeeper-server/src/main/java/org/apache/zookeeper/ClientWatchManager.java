@@ -30,7 +30,7 @@ public interface ClientWatchManager {
      * internal structure as if the watches had triggered. The intent being
      * that the callee is now responsible for notifying the watchers of the
      * event, possibly at some later time.
-     *
+     *   materialize 使具体化 /məˈtɪəriəlaɪz/
      * @param state event state
      * @param type event type
      * @param path event path

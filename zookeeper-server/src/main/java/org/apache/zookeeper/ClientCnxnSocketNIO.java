@@ -176,6 +176,10 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                 // TCP stack may choose to abort with RST, in which case the
                 // client would never receive the session expired event.  See
                 // http://docs.oracle.com/javase/6/docs/technotes/guides/net/articles/connection_release.html
+                //简单来说就是在初始连接成功后但是很快session超时了，这个时候服务端会给客户端发送session超时事件同时关闭socket连接，
+                // 如果与此同时客户端发送消息给服务端，会导致TCP的RST状态从而导致客户端收不到session 超时的消息。
+                // 故而在连接没有完成的情况下initialized=false，客户端取消对op_write的监听
+
                 disableWrite();
             } else {
                 // Just in case

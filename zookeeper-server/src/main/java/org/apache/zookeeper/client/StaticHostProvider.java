@@ -82,6 +82,7 @@ public final class StaticHostProvider implements HostProvider {
      *             if serverAddresses is empty or resolves to an empty list
      */
     public StaticHostProvider(Collection<InetSocketAddress> serverAddresses) {
+        // ^ 是按位异或（XOR）：参加运算的两个对象，如果两个相应位为“异”（值不同），则该位结果为1，否则为0
         init(serverAddresses, System.currentTimeMillis() ^ this.hashCode(), new Resolver() {
             @Override
             public InetAddress[] getAllByName(String name) throws UnknownHostException {
@@ -130,7 +131,7 @@ public final class StaticHostProvider implements HostProvider {
         if (serverAddresses.isEmpty()) {
             throw new IllegalArgumentException("A HostProvider may not be empty!");
         }
-        this.serverAddresses = shuffle(serverAddresses);
+        this.serverAddresses = shuffle(serverAddresses); // /ˈʃʌfl/  把……变换位置，也就是打乱顺序
         currentIndex = -1;
         lastIndex = -1;
     }
@@ -331,11 +332,15 @@ public final class StaticHostProvider implements HostProvider {
         return null;
     }
 
+    /**
+     * 根据一定规则，选取一个服务器进行连接
+     */
     public InetSocketAddress next(long spinDelay) {
         boolean needToSleep = false;
         InetSocketAddress addr;
 
         synchronized (this) {
+            //reconfigMode是zookeeper为了server端连接的负债均衡而设计的一个功能
             if (reconfigMode) {
                 addr = nextHostInReconfigMode();
                 if (addr != null) {
@@ -351,7 +356,7 @@ public final class StaticHostProvider implements HostProvider {
                 currentIndex = 0;
             }
             addr = serverAddresses.get(currentIndex);
-            // 当把hostprovider中的所有地址都尝试去连了一遍之后，仍然没有连接上，这时就需要睡眠
+            // 当把hostprovider中的所有地址都尝试去连了一遍之后，仍然没有连接上，这时就需要睡眠，意思是待会再连，服务器忙着呢
             needToSleep = needToSleep || (currentIndex == lastIndex && spinDelay > 0);
             if (lastIndex == -1) {
                 // We don't want to sleep on the first ever connect attempt.

@@ -141,12 +141,12 @@ public class ClientCnxn {
 
     private final CopyOnWriteArraySet<AuthData> authInfo = new CopyOnWriteArraySet<AuthData>();
 
-    /**
+    /** 客户端发送的请求，但是请求的response还没返回
      * These are the packets that have been sent and are waiting for a response.
      */
     private final Queue<Packet> pendingQueue = new ArrayDeque<>();
 
-    /**
+    /** 客户端需要发送的的请求，只是需要，还没发
      * These are the packets that need to be sent.
      */
     private final LinkedBlockingDeque<Packet> outgoingQueue = new LinkedBlockingDeque<Packet>();
@@ -166,7 +166,7 @@ public class ClientCnxn {
     private final int sessionTimeout;
 
     private final ZooKeeper zooKeeper;
-
+    // watch管理器，ClientWatchManager这是个接口，实现类是 ZKWatchManager
     private final ClientWatchManager watcher;
 
     private long sessionId;
@@ -182,9 +182,10 @@ public class ClientCnxn {
     private boolean readOnly;
 
     final String chrootPath;
-
+    // 客户端处理IO的线程
     final SendThread sendThread;
 
+    // 客户端处理各种watch事件的线程
     final EventThread eventThread;
 
     /**
@@ -256,7 +257,7 @@ public class ClientCnxn {
         return sb.toString();
     }
 
-    /**
+    /** 这个 Packet就是每次发送请求的数据包
      * This class allows us to pass the headers and the relevant records around.
      */
     static class Packet {
@@ -268,7 +269,10 @@ public class ClientCnxn {
         Record request;
 
         Record response;
-
+        /**
+         * Packet类有两个属性，请求头requestHeader和请求体request
+         * 这个两个属性的数据会转化成ByteBuffer类型的bb,最终发送给服务端的也就是这个bb
+         */
         ByteBuffer bb;
 
         /** Client's view of the path (may differ due to chroot) **/
@@ -316,6 +320,7 @@ public class ClientCnxn {
 
         public void createBB() {
             try {
+                // 这里就是最终发送给服务端的 元数据
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 BinaryOutputArchive boa = BinaryOutputArchive.getArchive(baos);
                 boa.writeInt(-1, "len"); // We'll fill this in later
@@ -441,7 +446,7 @@ public class ClientCnxn {
         readTimeout = sessionTimeout * 2 / 3;
         readOnly = canBeReadOnly;
 
-        // 发送数据 接收数据
+        // 发送数据 接收数据, clientCnxnSocket在默认情况下的实现是ClientCnxnSocketNIO
         sendThread = new SendThread(clientCnxnSocket);
         eventThread = new EventThread();
         this.clientConfig = zooKeeper.getClientConfig();
@@ -1045,6 +1050,7 @@ public class ClientCnxn {
             // Only send if there's a pending watch
             // TODO: here we have the only remaining use of zooKeeper in
             // this class. It's to be eliminated!
+            // 下面这段代码，就是将客户端注册的watcher 发送服务端
             if (!clientConfig.getBoolean(ZKClientConfig.DISABLE_AUTO_WATCH_RESET)) {
                 List<String> dataWatches = zooKeeper.getDataWatches();
                 List<String> existWatches = zooKeeper.getExistWatches();
@@ -1153,6 +1159,10 @@ public class ClientCnxn {
 
         private void sendPing() {
             lastPingSentNs = System.nanoTime();
+            /**
+             * 客户端每次向服务端发送消息的时候，都是封装一个 RequestHeader对象，作为请求头
+             * 并且这个请求头，包含两个信息1、xid 应该就是事务id   2、type 比如create，getData， delete等 用数字表示的
+             */
             RequestHeader h = new RequestHeader(ClientCnxn.PING_XID, OpCode.ping);
             queuePacket(h, null, null, null, null, null, null, null, null);
         }
@@ -1216,16 +1226,18 @@ public class ClientCnxn {
             }
         }
 
-        // SendTrhead
+        // SendThread
         @Override
         public void run() {
-            //
+            //设置clientCnxnSocket的sessionId，outgoingQueue属性
+            //注意当第一次建立连接的时候由于服务端的sessionId还没有生成，所以为默认的0
             clientCnxnSocket.introduce(this, sessionId, outgoingQueue);
             // 线程在一开始运行时，把now、lastSend、lastHeard都更新为当前时间
             clientCnxnSocket.updateNow();   // nod
             clientCnxnSocket.updateLastSendAndHeard();
             int to;
             long lastPingRwServer = Time.currentElapsedTime();
+            //客户端向服务端发送心跳的频率，默认是10s
             final int MAX_SEND_PING_INTERVAL = 10000; //10 seconds
             InetSocketAddress serverAddress = null;
 
@@ -1233,7 +1245,7 @@ public class ClientCnxn {
             // 只要不是被close了，或者向服务端验证失败了就是Alive，就算是还没有建立连接也是Alive
             while (state.isAlive()) {
                 try {
-                    // 判断的是sockKey != null则表示已经连接了
+                    // 判断的是SelectionKey sockKey != null则表示已经连接了
                     // 没有发送建立连接的这个动作
                     if (!clientCnxnSocket.isConnected()) {
                         // don't re-establish connection if we are closing
@@ -1244,10 +1256,11 @@ public class ClientCnxn {
                             serverAddress = rwServerAddress;
                             rwServerAddress = null;
                         } else {
+                            //通过hostProvider去服务器列表中获取一个服务进行连接
                             serverAddress = hostProvider.next(1000);
                         }
-                        // 简历连接，包括两步
-                        // 1. 简历socket连接
+                        // 建立连接，包括两步
+                        // 1. 建立socket连接
                         // 2. 连接初始化，primeConnection()
                         // 3. 这里没有发送任何数据，只是可能把socket连接建立好了   nio
                         startConnect(serverAddress);
@@ -1295,7 +1308,6 @@ public class ClientCnxn {
                         to = readTimeout - clientCnxnSocket.getIdleRecv();
                     } else {
                         // 超过connectTimeout时间了，socket连接还没有建立成功
-                        //
                         to = connectTimeout - clientCnxnSocket.getIdleRecv();  // 30000
                     }
 
@@ -1314,6 +1326,7 @@ public class ClientCnxn {
                         //1000(1 second) is to prevent race condition missing to send the second ping
                         //also make sure not to send too many pings when readTimeout is small
 
+                        // 如果已经建立了到服务端的连接，下面是下一次发送心跳信息到服务端的时间点
                         // clientCnxnSocket.getIdleSend()表示上一次发送数据的时间
                         int timeToNextPing = readTimeout / 2
                                              - clientCnxnSocket.getIdleSend()
