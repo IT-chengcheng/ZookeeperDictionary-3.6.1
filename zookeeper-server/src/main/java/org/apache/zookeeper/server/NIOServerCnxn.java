@@ -183,11 +183,16 @@ public class NIOServerCnxn extends ServerCnxn {
 
             // 初始化好了
             if (!initialized) {
-                // socket连接建立好了，还没有初始化，处理ConnectRequest
+                /**
+                 * socket连接建立好了，还没有初始化，处理ConnectRequest
+                 * 创建session等，这个方法也很重要
+                 */
                 readConnectRequest();
             } else {
-                // 处理其他命令请求
-                // 增删查改
+                /**
+                 * 处理其他命令请求
+                 * 处理 增删查改
+                 */
                 readRequest();
             }
             lenBuffer.clear();
@@ -355,7 +360,10 @@ public class NIOServerCnxn extends ServerCnxn {
                     }
 
                     if (isPayload) { // not the case for 4letterword
-                        // 处理命令
+                        /**
+                         * 处理各种命令
+                         * 处理 增删查改
+                         */
                         readPayload();
                     } else {
                         // four letter words take care

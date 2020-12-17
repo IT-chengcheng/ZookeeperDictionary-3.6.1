@@ -302,7 +302,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 }
                 SelectorThread selectorThread = selectorIterator.next();
 
-                // 把当前sc添加到selectorThread的队列中，selectorThread会处理它自己的队列中的sc
+                // 把当前sc添加到selectorThread的队列中，selectorThread会处理它自己的队列中的sc，到时候会取出来注册读写事件
                 if (!selectorThread.addAcceptedConnection(sc)) {
                     throw new IOException("Unable to add connection to selector queue"
                                           + (stopped ? " (shutdown in progress)" : ""));
@@ -343,7 +343,15 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     class SelectorThread extends AbstractSelectThread {
 
         private final int id;
+        /**
+         * AcceptThread 把具有连接事件的 socketchannal 都放到SelectorThread这个acceptedQueue队列中，
+         * 然后在processAcceptedConnections取出来注册读写事件
+         */
         private final Queue<SocketChannel> acceptedQueue;
+        /**
+         * 是在这里加的 IOWorkRequest -> doWork() 方法块的最后  -> selectorThread.addInterestOpsUpdateRequest(SelectionKey)
+         * 也就是处理完一个事件后，把这个 SelectionKey加入队列中，为了以后再取出来，重新注册感兴趣的事件
+         */
         private final Queue<SelectionKey> updateQueue;
 
         public SelectorThread(int id) throws IOException {
@@ -402,6 +410,9 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                          * acceptedQueue队列中的sc是啥时候加进去的？ 是在 AcceptThread 的 run（）方法里面（一步步看代码）
                          */
                         processAcceptedConnections();
+                        /**
+                         * 这个方法就是重新对  updateQueue 队列中的socketchanel注册感兴趣的事件
+                         */
                         processInterestOpsUpdateRequests();
                     } catch (RuntimeException e) {
                         LOG.warn("Ignoring unexpected runtime exception", e);
@@ -484,6 +495,15 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             // connection
             // 处理完一个key才去处理下一个key
             cnxn.disableSelectable();
+
+            /**
+             * 1、 socketChannel在selector注册对任何事件都不感兴趣
+             * zookeeper对单个连接上的IO事件是按照顺序一个一个处理的，它是如何实现按照IO事件发生顺序一个一个处理的呢？
+             * 当socketChannel接受到一个IO事件之后，他就会设置对任何事件都不感兴趣，这样后来到来的事件就
+             * 没有办法传递给server端的socketChannel，
+             * 2、那么在一个IO事件处理完成之后，socketChannel是如何再次向selector注册感兴趣的事件的呢？
+             *    这个就是processInterestOpsUpdateRequests（）的工作了
+             */
             key.interestOps(0);
 
             // 更新NIOServerCnxn上的时间，NIOServerCnxn也是一个对象，如果一直没有接收到数据（客户端一直没有发送数据和ping），
@@ -501,11 +521,17 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
          */
         private void processAcceptedConnections() {
             SocketChannel accepted;
+            /**
+             * 注意 acceptedQueue.poll() 是 Queue接口的方法，这个接口没有take（）方法
+             * acceptedQueue.take() 是  LinkedBlockingQueue类中的方法
+             * 这两个方法是有区别的，一个阻塞，一个不阻塞
+             * acceptedQueue里面的 SocketChannel啥时候加进去的？是在AcceptThread里面加的，在这个方法里就是取出来，注册读事件
+             */
             while (!stopped && (accepted = acceptedQueue.poll()) != null) {
                 SelectionKey key = null;
                 try {
                     key = accepted.register(selector, SelectionKey.OP_READ);
-                    // 一个sc对应一个NIOServerCnxn,socket连接的上下文
+                    // 一个sc对应一个NIOServerCnxn,socket连接的上下文，这个类也很重要
                     NIOServerCnxn cnxn = createConnection(accepted, key, this);
                     key.attach(cnxn);
                     addCnxn(cnxn);
@@ -517,12 +543,17 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             }
         }
 
-        /**
+        /** resume /rɪˈzjuːm/重新开始
          * Iterate over the queue of connections ready to resume selection,
          * and restore their interest ops selection mask.
          */
         private void processInterestOpsUpdateRequests() {
             SelectionKey key;
+            /**
+             * 首先看一下英文注释，然后注意 updateQueue 与  acceptedQueue 这两个队列的用法
+             * updateQueue 队列的值  是在处理完一个事件后，加进去的。这里就是重新注册感兴趣的事件
+             * 是在这里加的 IOWorkRequest -> doWork() 方法块的最后  -> selectorThread.addInterestOpsUpdateRequest(SelectionKey)
+             */
             while (!stopped && (key = updateQueue.poll()) != null) {
                 if (!key.isValid()) {
                     cleanupSelectionKey(key);
@@ -563,10 +594,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             // 读就绪或写就绪
             if (key.isReadable() || key.isWritable()) {
 
-                // 处理key
-                // 到这里，多个客户端请求还是并发处理的
-
-                    cnxn.doIO(key); // 顺序
+                /**
+                 * 处理key，也就是处理各种命令请求，到这里，多个客户端请求还是并发处理的
+                 * 处理 增删查改
+                 */
+                cnxn.doIO(key); // 顺序
 
                 // Check if we shutdown or doIO() closed this connection
                 if (stopped) {
@@ -717,7 +749,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             // 最后会将这个 selector线程数组 传给 AcceptThread ，它里面有个set集合保存
             selectorThreads.add(new SelectorThread(i));
         }
-
+        //listenBacklog 用来设置socket连接队列的最大值
         listenBacklog = backlog;
         /**
          * 这是才是真正要启动NioSocketServer了，当然也仅仅是开启连接和绑定，还没有执行如下两个方法

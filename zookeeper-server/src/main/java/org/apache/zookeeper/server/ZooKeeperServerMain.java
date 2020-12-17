@@ -161,7 +161,10 @@ public class ZooKeeperServerMain {
              */
             zkServer.registerServerShutdownHandler(new ZooKeeperServerShutdownHandler(shutdownLatch));
 
-            // Start Admin server
+            /**  Start Admin server
+             *  adminServer使用jetty作为服务器默认端口是8080，通过http://ip:8080/commands 可以查看zookeeper支持的命令
+             *  其实就是一个servlet
+             */
             adminServer = AdminServerFactory.createAdminServer();
             adminServer.setZooKeeperServer(zkServer);
             adminServer.start();
