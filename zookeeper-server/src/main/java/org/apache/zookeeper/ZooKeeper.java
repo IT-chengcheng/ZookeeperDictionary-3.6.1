@@ -1764,7 +1764,7 @@ public class ZooKeeper implements AutoCloseable {
         List<ACL> acl,
         CreateMode createMode) throws KeeperException, InterruptedException {
 
-
+        //path是用户设置的节点路径
         final String clientPath = path;
         // 验证路径，顺序节点有点特殊，普通节点的路径最后一个字符不能为‘/’，但是顺序节点可以为‘/’
         PathUtils.validatePath(clientPath, createMode.isSequential());
@@ -1772,7 +1772,7 @@ public class ZooKeeper implements AutoCloseable {
         EphemeralType.validateTTL(createMode, -1);
         // acl是否为空，为空会抛异常
         validateACL(acl);
-        //
+        //如何设置了chrootPath，那么根据chrootPath和clientPath形成最终节点在服务端的路径
         final String serverPath = prependChroot(clientPath);
 
         // 请求头

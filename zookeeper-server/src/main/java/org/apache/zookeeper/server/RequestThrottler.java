@@ -129,13 +129,13 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
     }
 
     @Override
-    public void run() {
+    public void run() {// ZookeeperServer -> startup() ->  startRequestThrottler（）中 开启了RequestThrottler线程
         try {
             while (true) {
                 if (killed) {
                     break;
                 }
-
+                // 在哪加入的 Request？ 在 ZookeeperServer -> enqueueRequest()
                 Request request = submittedRequests.take();
                 // 退出某个线程的做法
                 if (Request.requestOfDeath == request) {
@@ -158,15 +158,15 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
                             request = null;
                             break;
                         }
-                        // 真正被处理的请求
+                        // 真正被处理的请求 ,没有达到限流的条件
                         if (zks.getInProcess() < maxRequests) {
                             break;
                         }
-                        // 超过了则睡眠一会
+                        //如果目前在处理链上正在处理的请求数大于maxRequests，RequestThrottler休眠一会
                         throttleSleep(stallTime);
                     }
                 }
-
+                //线程收到了停止工作的要求，所以退出
                 if (killed) {
                     break;
                 }
@@ -177,7 +177,7 @@ public class RequestThrottler extends ZooKeeperCriticalThread {
                     if (request.isStale()) {
                         ServerMetrics.getMetrics().STALE_REQUESTS.add(1);
                     }
-                    //
+                    //把请求提交给处理链上的 下一个处理器 PreRequestProcessor 处理
                     zks.submitRequestNow(request); //
                 }
             }

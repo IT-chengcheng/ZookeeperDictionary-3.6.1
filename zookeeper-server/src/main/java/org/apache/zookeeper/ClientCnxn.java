@@ -1650,7 +1650,11 @@ public class ClientCnxn {
         WatchDeregistration watchDeregistration) throws InterruptedException {
 
         ReplyHeader r = new ReplyHeader();  //
-        // 把数据包加入outgoingQueue队列中
+        /** 1、把数据包加入outgoingQueue队列中
+         * 2、唤醒niosocket，，也就是执行selector.wakeup()
+         * 3、执行selector.wakeup()的目的就是触发  selector.select();这是NIO的特性
+         */
+
         Packet packet = queuePacket(
             h,
             r,
@@ -1752,6 +1756,7 @@ public class ClientCnxn {
         // Note that we do not generate the Xid for the packet yet. It is
         // generated later at send-time, by an implementation of ClientCnxnSocket::doIO(),
         // where the packet is actually sent.
+        //生成新建节点请求Packet对象
         packet = new Packet(h, r, request, response, watchRegistration);
         packet.cb = cb;
         packet.ctx = ctx;
@@ -1765,6 +1770,7 @@ public class ClientCnxn {
         // state是ClientConxn的属性，表示当前连接的状态
         synchronized (state) {
             if (!state.isAlive() || closing) {
+                //如果客户端和服务端连接已经关闭，那么通知客户具体情况
                 conLossPacket(packet);
             } else {
                 // If the client is asking to close the session then
@@ -1772,11 +1778,18 @@ public class ClientCnxn {
                 if (h.getType() == OpCode.closeSession) {
                     closing = true;
                 }
+                //把请求消息放入到outgoingQueue中等待发送到服务端
                 outgoingQueue.add(packet);
             }
         }
-        // 数据包添加后，立即唤醒niosocket，这是nio的特性
+        /**
+         *  数据包添加后，立即唤醒niosocket，这是nio的特性，里面其实就是执行了selector.wakeup()，
+         * 执行selector.wakeup()的目的就是触发  selector.select()，这是NIO的特性
+         * 进入 sendThread -> doTransport() , 进入这个类 ClientCnxnSocket -> doTransport() -> doIO ()
+         * 这里就会取出 上一步 outgoingQueue加的 packet，然后发送给服务端
+         */
         sendThread.getClientCnxnSocket().packetAdded();
+
         return packet;
     }
 

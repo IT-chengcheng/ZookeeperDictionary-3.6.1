@@ -125,6 +125,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
         }
 
         public void wakeupSelector() {
+            // 很多很多地方都会调用到这里，唤醒selector，这是NIO特性
             selector.wakeup();
         }
 

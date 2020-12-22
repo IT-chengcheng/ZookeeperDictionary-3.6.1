@@ -672,17 +672,17 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
     public synchronized void startup() {
 
-        // sessionTracker是一个线程，用来关闭过期session
+        // 1、sessionTracker是一个线程，用来关闭过期session
         if (sessionTracker == null) {
             createSessionTracker();
         }
-        //监控session
+        //2、监控session
         startSessionTracker();
 
-        // 设置RequestProcessor chain,并且开启第一个线程  ((PrepRequestProcessor) firstProcessor).start();
+        // 3、设置RequestProcessor chain,并且开启第一个线程  ((PrepRequestProcessor) firstProcessor).start();
         setupRequestProcessors();
 
-        // RequestThrottler是一个线程，用来进行限流，并调用firstRequestProcessor来处理请求
+        //4、 RequestThrottler是一个线程，用来进行限流，并调用firstRequestProcessor来处理请求
         startRequestThrottler();
 
         // jmx就不看了
@@ -1122,6 +1122,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 }
             }
         }
+        /**
+         * RequestThrottler 作为处理器链上的第一个处理器它的作用是用来控制zookeeper处理事物的数量,
+         * 从而达到限流的目的,包装服务端不会过载，它作为一个单独的线程运行，这里仅仅是将 Request加入到RequestThrottler的队列中
+         * LinkedBlockingQueue<Request> submittedRequests。 什么时候用?
+         * ZookeeperServer -> startup() ->  startRequestThrottler（）中 开启了RequestThrottler线程 ,并且取出 Request，进行操作
+         */
         requestThrottler.submitRequest(si);
     }
 
@@ -1152,6 +1158,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 // 还没研究
                 setLocalSessionFlag(si);
 
+                /**
+                 * 这里仅仅是将 request 放入到 PreRequestProcessor 队列中
+                 * LinkedBlockingQueue<Request> submittedRequests
+                 * 什么时候从队列中取？PreRequestProcessor 是个线程，他又是什么时候执行的呢？
+                 * ZookeeperServer -> startup() ->  setupRequestProcessors() 在这个方法中启动PreRequestProcessor线程的
+                 * 进入 PreRequestProcessor -> run()
+                 */
                 firstProcessor.processRequest(si);
 
                 // 正在处理的请求+1
@@ -1619,9 +1632,10 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         InputStream bais = new ByteBufferInputStream(incomingBuffer);
         BinaryInputArchive bia = BinaryInputArchive.getArchive(bais);
 
-        // Request
-        // RequestHeader
-
+        /**
+         * 首先反序列化请求头,请求头里有操作类型，比如是create，ping，del。
+         * 有个常量类 ZooDefs.OpCode
+         */
         RequestHeader h = new RequestHeader();
         h.deserialize(bia, "header");
 
@@ -1634,6 +1648,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         //
         // It's fine if the IOException thrown before we decrease the count
         // in cnxn, since it will close the cnxn anyway.
+        //zk事物处理链具有控制流量的功能，这个地方就是增加正在处理的事物数和检查是不是需要限流
         cnxn.incrOutstandingAndCheckThrottle(h);
 
         // Through the magic of byte buffers, txn will not be
@@ -1641,15 +1656,19 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         // to the start of the txn
         incomingBuffer = incomingBuffer.slice();
 
-        // 处理addAuth命令，把auth信息添加到ServerCnxn中 // ACl create /xx/node
-        if (h.getType() == OpCode.auth) {   // addAuth xx
+
+        if (h.getType() == OpCode.auth) {
+            // 处理addAuth命令，把auth信息添加到ServerCnxn中 // ACl create /xx/node
+            // addAuth xx
             // addAuth
             LOG.info("got auth packet {}", cnxn.getRemoteSocketAddress());
             AuthPacket authPacket = new AuthPacket();
+            //消息体反序列化成认证Packet
             ByteBufferInputStream.byteBuffer2Record(incomingBuffer, authPacket);
 
             //
             String scheme = authPacket.getScheme();
+            //根据scheme获取对应的服务器认证类
             // scheme为digest时，对应的就是DigestAuthenticationProvider
             ServerAuthenticationProvider ap = ProviderRegistry.getServerProvider(scheme);
             Code authReturn = KeeperException.Code.AUTHFAILED;
@@ -1657,6 +1676,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 try {
                     // handleAuthentication may close the connection, to allow the client to choose
                     // a different server to connect to.
+                    //进行认证
                     authReturn = ap.handleAuthentication(
                         new ServerAuthenticationProvider.ServerObjs(this, cnxn),
                         authPacket.getAuth());
@@ -1666,9 +1686,15 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 }
             }
             if (authReturn == KeeperException.Code.OK) {
+                //认证成功，返回认证成功结果给客户端
                 LOG.debug("Authentication succeeded for scheme: {}", scheme);
                 LOG.info("auth success {}", cnxn.getRemoteSocketAddress());
                 ReplyHeader rh = new ReplyHeader(h.getXid(), 0, KeeperException.Code.OK.intValue());
+                /**
+                 *  cnxn.sendResponse 其实就是执行 selector.wakeup()
+                 *  服务端给客户端发送数据都会调用 cnxn.sendResponse，最终调用的都是 selector.wakeup()
+                 */
+
                 cnxn.sendResponse(rh, null, null);
             } else {
                 if (ap == null) {
@@ -1682,8 +1708,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 // send a response...
                 ReplyHeader rh = new ReplyHeader(h.getXid(), 0, KeeperException.Code.AUTHFAILED.intValue());
                 cnxn.sendResponse(rh, null, null);
-                // ... and close connection
+                // ... and close connection  认证失败，发送closeConn消息来关闭连接
                 cnxn.sendBuffer(ServerCnxnFactory.closeConn);
+                // 认证失败，服务端连接不再接受客户端的任何请求
                 cnxn.disableRecv();
             }
             return;
@@ -1708,16 +1735,23 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
                 Request si = new Request(cnxn, cnxn.getSessionId(), h.getXid(), h.getType(), incomingBuffer, cnxn.getAuthInfo());
 
                 int length = incomingBuffer.limit();
-                // 是不是大请求
-                if (isLargeRequest(length)) {
+
+                if (isLargeRequest(length)) { //如果请求特别的大（用户可以设置一个阈值，用来指定什么是大的请求）
                     // checkRequestSize will throw IOException if request is rejected
+                    //根据系统配置的能容忍的最大请求数据量（100k），来决定是不是需要拒绝当前的大请求
                     checkRequestSizeWhenMessageReceived(length);
                     si.setLargeRequestSize(length);
                 }
+                //设置请求的owner
                 si.setOwner(ServerCnxn.me);
 
                 // 使用requestThrottler来处理请求，requestThrottler表示限流
                 submitRequest(si);
+                /**
+                 * 经过这个processPacket（）方法处理之后，请求对象会进入到请求处理链进行处理，对于单机版本的zookeeper而言,
+                 * 所有的事物请求都会被请求处理链处理
+                 * RequestThrottler -> PreRequestProcessor - > SyncRequestProcessor -> FinalRequestProcessor
+                 */
             }
         }
     }

@@ -133,10 +133,11 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
     }
 
     @Override
-    public void run() {
+    public void run() {//ZookeeperServer -> startup() ->  setupRequestProcessors() 在这个方法中启动PreRequestProcessor线程
         try {
             while (true) {
                 ServerMetrics.getMetrics().PREP_PROCESSOR_QUEUE_SIZE.add(submittedRequests.size());
+                //从队列中 取得一个请求
                 Request request = submittedRequests.take();
                 ServerMetrics.getMetrics().PREP_PROCESSOR_QUEUE_TIME
                     .add(Time.currentElapsedTime() - request.prepQueueStartTime);
@@ -153,7 +154,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
                 }
 
                 request.prepStartTime = Time.currentElapsedTime();
-
+                //pRequest（）是PreRequestProcessor逻辑处理的核心
                 pRequest(request);
             }
         } catch (Exception e) {

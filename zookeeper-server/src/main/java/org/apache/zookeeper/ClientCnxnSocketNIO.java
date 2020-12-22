@@ -132,14 +132,20 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     if ((p.requestHeader != null)
                         && (p.requestHeader.getType() != OpCode.ping)
                         && (p.requestHeader.getType() != OpCode.auth)) {
-                        // 如果不是ping请求、auth请求，则设置一个xid，xid是一个自增的id，估计服务端会用到？服务端没有用到，客户端自己用，在接收到某个请求的响应时会验证一下xid
+                        // 如果不是ping请求、auth请求，则设置一个xid，xid是一个自增的id，
+                        // 估计服务端会用到？服务端没有用到，客户端自己用，在接收到某个请求的响应时会验证一下xid
                         p.requestHeader.setXid(cnxn.getXid());
                     }
                     // 把Packet所表示的请求内容，放入到bb中
                     p.createBB();
                 }
-
-                sock.write(p.bb);  // 发送
+                /**
+                 * 这就是真正将  客户端的数据 发送给 服务端
+                 * 服务端接受到数据后，就用开始处理数据，接下来看服务端代码
+                 * 客户端流程图，见笔记：[](/Image-Architecture/Zookeeper/image4.jpg)
+                 * 服务端流程图，见笔记：[](/Image-Architecture/Zookeeper/image5.jpg)
+                 */
+                sock.write(p.bb);
 
                 // 如果bb中没有剩余数据了，表示数据都发送完了
                 if (!p.bb.hasRemaining()) {
@@ -359,6 +365,7 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
     }
 
     private synchronized void wakeupCnxn() {
+        // 唤醒NIO socket，接收读写事件，具体还要仔细研究NIO的特性
         selector.wakeup();
     }
 
@@ -367,6 +374,12 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
         int waitTimeOut,
         Queue<Packet> pendingQueue,
         ClientCnxn cnxn) throws IOException, InterruptedException {
+        /**  这个selector会在执行创建节点的方法里被唤醒，创建节点那里做的仅仅将数据包放入outgoingQueue， 这个方法就是从outgoingQueue取出
+         *   packet，然后发送给服务端
+         *   zookeeper.create -> ClientCnxn.submitRequest() - > queuePacket()
+         */
+
+
         // 阻塞获取事件
         selector.select(waitTimeOut);
 

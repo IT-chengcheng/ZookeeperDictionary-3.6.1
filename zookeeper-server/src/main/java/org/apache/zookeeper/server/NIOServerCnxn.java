@@ -191,7 +191,7 @@ public class NIOServerCnxn extends ServerCnxn {
             } else {
                 /**
                  * 处理其他命令请求
-                 * 处理 增删查改
+                 * 接下来就开始 请求消息的处理过程，增删改查等
                  */
                 readRequest();
             }
@@ -407,6 +407,7 @@ public class NIOServerCnxn extends ServerCnxn {
 
 
     private void readRequest() throws IOException {
+        // 最终还是进入的ZooKeeperServer 去处理
         zkServer.processPacket(this, incomingBuffer);
     }
 
