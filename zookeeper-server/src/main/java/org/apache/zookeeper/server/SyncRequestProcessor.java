@@ -161,31 +161,36 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
         try {
             // we do this in an attempt to ensure that not all of the servers
             // in the ensemble take a snapshot at the same time
+            //为了防止zookeeper所有的server在同时做的快照，SyncRequestProcessor会通过resetSnapshotStats随机生成randRoll和randSize
+            //randRoll和randSize是zookeeper生成快照的判断条件
             resetSnapshotStats();
+
+            //初始化lastFlushTime
             lastFlushTime = Time.currentElapsedTime();
 
             // 不断的从queuedRequests获取Request进行持久化
             // 先尝试把Request对象添加到
-
             while (true) {
                 ServerMetrics.getMetrics().SYNC_PROCESSOR_QUEUE_SIZE.add(queuedRequests.size());
-
+                //pollTime表示系统多久之后就应该做快照操作了
                 long pollTime = Math.min(zks.getMaxWriteQueuePollTime(), getRemainingDelay());
 
-                // poll
                 // 移除并返回队列头部的元素，如果队列为空，则返回null
-                // 批量持久请求
+                //从消息队列中获取一个Request，如果等待了pollTime都没有获取到，那么直接返回null
                 Request si = queuedRequests.poll(pollTime, TimeUnit.MILLISECONDS);
 
                 if (si == null) {
+
                     // 如果从queuedRequests队列中没有获取到请求了，那么就把接收到的请求flush
                     /* We timed out looking for more writes to batch, go ahead and flush immediately */
-                    flush(); //
-                    // 移除并返回队列头部的元素，如果队列为空，则阻塞
+                    flush();
+
+                    //flush之后从queuedRequests获取请求的方式变成take，移除并返回队列头部的元素，如果没有请求就一直等待
                     si = queuedRequests.take();
                 }
 
                 if (si == REQUEST_OF_DEATH) {
+                    //收到了一个停止本线程的请求
                     break;
                 }
 
@@ -223,10 +228,10 @@ public class SyncRequestProcessor extends ZooKeeperCriticalThread implements Req
                         }
                     }
                 } else if (toFlush.isEmpty()) {
-                    // toFlush是一个队列，表示需要进行持久化的Request，当Request被持久化了之后，就会把Request从toFlush中移除，直接调用nextProcessor
+                    // toFlush是一个队列，表示需要进行持久化的Request，当Request被持久化了之后，就会把Request从toFlush中移除，
+                    // 直接调用nextProcessor
                     // 所以如果一个Request的hdr为null，表示不用进行持久化，
                     // 并且当toFlush队列中有值时不能先执行这个Request请求，得等toFlush中请求都执行完了之后才能执行
-
                     // optimization for read heavy workloads
                     // iff this is a read, and there are no pending
                     // flushes (writes), then just pass this to the next

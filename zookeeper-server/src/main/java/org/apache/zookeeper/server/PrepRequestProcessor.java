@@ -341,6 +341,9 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         case OpCode.create2:
         case OpCode.createTTL:
         case OpCode.createContainer: {
+            /**
+             * 重点分析这个方法，这就是创建节点的方法
+             */
             pRequest2TxnCreate(type, request, record, deserialize);
             break;
         }
@@ -664,8 +667,9 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
     }
 
     private void pRequest2TxnCreate(int type, Request request, Record record, boolean deserialize) throws IOException, KeeperException {
-        // 把请求中的请求体，复制到record中，等待持久化
+
         if (deserialize) {
+            //把ByteBuffer反序列化成具体的请求对象record  等待持久化
             ByteBufferInputStream.byteBuffer2Record(request.request, record);
         }
 
@@ -684,10 +688,11 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
             ttl = createTtlRequest.getTtl();
         } else {
             CreateRequest createRequest = (CreateRequest) record;
-            flags = createRequest.getFlags();
-            path = createRequest.getPath();
-            acl = createRequest.getAcl();
-            data = createRequest.getData();
+
+            flags = createRequest.getFlags(); // flags:节点类型
+            path = createRequest.getPath();// path：节点路径
+            acl = createRequest.getAcl();// acl：节点的访问控制
+            data = createRequest.getData();// data：节点的值
             ttl = -1;
         }
         // 节点类型（临时节点、顺序节点...） -s -e
@@ -701,24 +706,28 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         List<ACL> listACL = fixupACL(path, request.authInfo, acl);
 
         // 拿到父节点的ChangeRecord，现在是创建一个节点，所以父节点上的属性也是需要改变的
+        //获取父节点的状态信息，ChangeRecord是事物处理链用来跟踪节点状态信息的对象，
+        // 在事物处理完成之后，对应节点以及父节点的ChangeRecord也会被清理掉
         ChangeRecord parentRecord = getRecordForPath(parentPath);
 
+        //检查父节点设置的acl是否允许当前节点去添加
         zks.checkACL(request.cnxn, parentRecord.acl, ZooDefs.Perms.CREATE, request.authInfo, path, listACL);
 
-         // create -s /xx/luban_
-        // luban_000002
+         // create -s /xx/abc_
+        // abc_000002
 
-        // children的cversion    1
+        //获取父节点的cversion，父节点的cversion就是zookeeper用来实现顺序节点的关键所在
         int parentCVersion = parentRecord.stat.getCversion();
-
         if (createMode.isSequential()) {
-            //
+            //如果是顺序型的节点，那么根据cversion形成新的path的名称
             path = path + String.format(Locale.ENGLISH, "%010d", parentCVersion);
         }
 
 
         validatePath(path, request.sessionId);
         try {
+            //获取当前新加节点的ChangeRecord，正常来说如果节点不存在抛出NoNodeException，表示可以正常添加，
+            //如何节点在服务端已经存在，抛出NodeExistsException，告知用户节点不能重复创建
             if (getRecordForPath(path) != null) {
                 throw new KeeperException.NodeExistsException(path);
             }
@@ -728,11 +737,11 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
 
         // 父节点是不是一个临时节点
         boolean ephemeralParent = EphemeralType.get(parentRecord.stat.getEphemeralOwner()) == EphemeralType.NORMAL;
-        if (ephemeralParent) {
+        if (ephemeralParent) {//如果父节点是瞬时类型的节点，那么不能添加子节点，给客户端抛出相应的异常
             throw new KeeperException.NoChildrenForEphemeralsException(path);
         }
 
-        // Cversion+1
+        //更新父节点的cversion Cversion+1
         int newCversion = parentRecord.stat.getCversion() + 1;
 
         // 根据不同的类型，设置日志体
@@ -741,6 +750,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         } else if (type == OpCode.createTTL) {
             request.setTxn(new CreateTTLTxn(path, data, listACL, newCversion, ttl));
         } else {
+            //生成节点的信息体结构：路径，数据，acl信息，节点属性，cversion
             request.setTxn(new CreateTxn(path, data, listACL, createMode.isEphemeral(), newCversion));
         }
 
@@ -753,17 +763,22 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         } else if (createMode.isTTL()) {
             ephemeralOwner = EphemeralType.TTL.toEphemeralOwner(ttl);
         } else if (createMode.isEphemeral()) {
+            //如果节点类型是瞬时节点，那么设置ephemeralOwner=sessionId
             ephemeralOwner = request.sessionId;
         }
 
-        // 把父节点变更记录加入到outstandingChanges中
+        //设置节点的状态信息
         StatPersisted s = DataTree.createStat(hdr.getZxid(), hdr.getTime(), ephemeralOwner);
         parentRecord = parentRecord.duplicate(request.getHdr().getZxid());
+        //更新父节点包含的子节点的个数
         parentRecord.childCount++;
+        //更新父节点的cversion
         parentRecord.stat.setCversion(newCversion);
+        //更新父节点的最新事物id
         parentRecord.stat.setPzxid(request.getHdr().getZxid());
         parentRecord.precalculatedDigest = precalculateDigest(
                 DigestOpCode.UPDATE, parentPath, parentRecord.data, parentRecord.stat);
+        //把父节点的更改信息加入到outstandingChanges队列中
         addChangeRecord(parentRecord);
 
         // 把当前节点变更记录加入到outstandingChanges中
@@ -772,6 +787,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         nodeRecord.data = data;
         nodeRecord.precalculatedDigest = precalculateDigest(
                 DigestOpCode.ADD, path, nodeRecord.data, s);
+        //生成摘要信息
         setTxnDigest(request, nodeRecord.precalculatedDigest);
         addChangeRecord(nodeRecord);
     }
@@ -814,12 +830,18 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
         request.setHdr(null);  // TxnHeader
         request.setTxn(null);  // Txn
 
+        /**
+         * 主要调用了3个方法
+         * 1、pRequest2Txn（） 传入的参数是不同的  XXXXRequest 这些Request 都 implements Record
+         * 2、zks.sessionTracker.checkSession
+         * 3、nextProcessor.processRequest(request)
+         */
         try {
             switch (request.type) {
             case OpCode.createContainer:
                 case OpCode.create:
                 case OpCode.create2:
-                // 这里new出来的这个对象，只在pRequest2Txn方法中用了，该对象是Record的实现类，表示日志体
+                // 这里new出来的这个对象，只在pRequest2Txn方法中用了，该对象实现了Record接口，表示日志体
                 CreateRequest create2Request = new CreateRequest();
                 // 注意这里会先调用zks.getNextZxid()获取下一个zxid（自增）
                 pRequest2Txn(request.type, zks.getNextZxid(), request, create2Request, true);
@@ -834,6 +856,7 @@ public class PrepRequestProcessor extends ZooKeeperCriticalThread implements Req
                 pRequest2Txn(request.type, zks.getNextZxid(), request, deleteRequest, true);
                 break;
             case OpCode.setData:
+                // 这个就是客户端创建节点的 Request
                 SetDataRequest setDataRequest = new SetDataRequest();
                 pRequest2Txn(request.type, zks.getNextZxid(), request, setDataRequest, true);
                 break;

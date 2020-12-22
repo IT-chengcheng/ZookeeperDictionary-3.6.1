@@ -665,7 +665,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             zkDb = new ZKDatabase(this.txnLogFactory);
         }
         if (!zkDb.isInitialized()) {
-            // 加载数据
+            // 加载数据， 以及快照
             loadData();
         }
     }
@@ -716,15 +716,16 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
     protected void setupRequestProcessors() {
         // PrepRequestProcessor-->SyncRequestProcessor-->FinalRequestProcessor
-        // 1. 启动SyncRequestProcessor线程
-        // 2. 启动PrepRequestProcessor线程
+        // 1. 先启动SyncRequestProcessor线程
+        // 2. 再启动PrepRequestProcessor线程
 
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
 
         RequestProcessor syncProcessor = new SyncRequestProcessor(this, finalProcessor);
-        ((SyncRequestProcessor) syncProcessor).start();
+        ((SyncRequestProcessor) syncProcessor).start();// 启动线程
+
         firstProcessor = new PrepRequestProcessor(this, syncProcessor);
-        ((PrepRequestProcessor) firstProcessor).start();
+        ((PrepRequestProcessor) firstProcessor).start();// 启动线程
     }
 
     public ZooKeeperServerListener getZooKeeperServerListener() {
@@ -1838,6 +1839,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         return processTxnInDB(hdr, txn, null);
     }
 
+    // 新建节点的请求是 写入到zookeeper内存数据库
+    // 确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
     // entry point for FinalRequestProcessor.java
     public ProcessTxnResult processTxn(Request request) {
         TxnHeader hdr = request.getHdr();
@@ -1856,7 +1859,10 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
         //
         synchronized (outstandingChanges) {
-            // 根据txn去更新ZKDatabase，并且会触发watch
+            /**
+             * 根据txn去更新ZKDatabase，也就是存储到 内存数据库，确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
+             * 并且会触发watch
+             */
             ProcessTxnResult rc = processTxnInDB(hdr, request.getTxn(), request.getTxnDigest());
 
             // request.hdr is set for write requests, which are the only ones
@@ -1912,11 +1918,13 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             sessionTracker.removeSession(sessionId);
         }
     }
-
+    // 根据txn去更新ZKDatabase，也就是存储到 内存数据库  确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
+    // 并且会触发watch
     private ProcessTxnResult processTxnInDB(TxnHeader hdr, Record txn, TxnDigest digest) {
         if (hdr == null) {
             return new ProcessTxnResult();
         } else {
+            // 调用的是 ZKDatabase
             return getZKDatabase().processTxn(hdr, txn, digest);
         }
     }

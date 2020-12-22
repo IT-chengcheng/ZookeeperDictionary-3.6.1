@@ -486,6 +486,7 @@ public class ZKDatabase {
      * datatree/zkdatabase
      */
     public ProcessTxnResult processTxn(TxnHeader hdr, Record txn, TxnDigest digest) {
+        // DataTree
         return dataTree.processTxn(hdr, txn, digest);
     }
 
@@ -644,7 +645,8 @@ public class ZKDatabase {
      * @return true if the append was succesfull and false if not
      */
     public boolean append(Request si) throws IOException {
-        txnCount.incrementAndGet(); // flush
+        txnCount.incrementAndGet(); // //更新内存中事物的数量 flush
+        // 点进去看看
         return this.snapLog.append(si);
     }
 

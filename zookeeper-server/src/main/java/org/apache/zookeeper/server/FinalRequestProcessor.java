@@ -106,7 +106,10 @@ public class FinalRequestProcessor implements RequestProcessor {
         this.requestPathMetricsCollector = zks.getRequestPathMetricsCollector();
     }
 
+    // 注意这个处理器可不是个线程，这个方法是在 SyncRequestProcessor中调用的，这方法就是这个类的核心方法
+    // 前面两个处理器的核心都在线程run（）方法里。
     public void processRequest(Request request) {
+
         LOG.debug("Processing request:: {}", request);
 
         // request.addRQRec(">final");
@@ -121,7 +124,11 @@ public class FinalRequestProcessor implements RequestProcessor {
         // 1. 会更新ZKDatabase
         // 2. 触发watcher
         // 3. 如果是集群模式就把request添加到committedLog队列中
+        // 4. zookeeper 将节点 存储 到内存数据库,确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
         ProcessTxnResult rc = zks.processTxn(request);
+        /**
+         * 下面方法还很长，一定要仔细看
+         */
 
         // ZOOKEEPER-558:
         // In some cases the server does not close the connection (e.g., closeconn buffer
@@ -594,6 +601,7 @@ public class FinalRequestProcessor implements RequestProcessor {
 
         try {
             if (path == null || rsp == null) {
+                //经过上面各种case 最后会到这里，下面的逻辑就是把操作的状态根据不同的操作类型发送给客户端
                 cnxn.sendResponse(hdr, rsp, "response");
             } else {
                 int opCode = request.type;

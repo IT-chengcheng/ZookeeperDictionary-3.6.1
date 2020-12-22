@@ -102,12 +102,12 @@ public class DataTree {
      * This map provides a fast lookup to the datanodes. The tree is the
      * source of truth and is where all the locking occurs
      */
-    private final NodeHashMap nodes;
+    private final NodeHashMap nodes;// 实现类 NodeHashMapImpl
 
     // 下面两个只是属性名字不同而已，都是WatchManager实例对象
-    private IWatchManager dataWatches;
+    private IWatchManager dataWatches; // 实现类 WatchManager
 
-    private IWatchManager childWatches;
+    private IWatchManager childWatches; // 实现类 WatchManager
 
     /** cached total size of paths and data for all DataNodes */
     private final AtomicLong nodeDataSize = new AtomicLong(0);
@@ -302,8 +302,8 @@ public class DataTree {
 
         nodeDataSize.set(approximateDataSize());
         try {
-            dataWatches = WatchManagerFactory.createWatchManager();  // watchTable  map  {"/luban123": Set<ServerCnxn>}
-            childWatches = WatchManagerFactory.createWatchManager(); // watchTable  map  {"/luban123“: Set<ServerCnxn>}
+            dataWatches = WatchManagerFactory.createWatchManager();  // watchTable  map  {"/xxx": Set<ServerCnxn>}
+            childWatches = WatchManagerFactory.createWatchManager(); // watchTable  map  {"/xxx“: Set<ServerCnxn>}
         } catch (Exception e) {
             LOG.error("Unexpected exception when creating WatchManager, exiting abnormally", e);
             ServiceUtils.requestSystemExit(ExitCode.UNEXPECTED_ERROR.getValue());
@@ -469,10 +469,10 @@ public class DataTree {
         int lastSlash = path.lastIndexOf('/');
         String parentName = path.substring(0, lastSlash); // 父节点
         String childName = path.substring(lastSlash + 1); // 本节点
-
+        //创建本节点的状态信息
         StatPersisted stat = createStat(zxid, time, ephemeralOwner);
 
-        // 拿到父节点
+        //在zookeeper内存数据库中获取父节点,就是个map  -> ConcurrentHashMap<String, DataNode> nodes
         DataNode parent = nodes.get(parentName);
 
         if (parent == null) {
@@ -492,12 +492,12 @@ public class DataTree {
             // we did for the global sessions.
             Long longval = aclCache.convertAcls(acl);
 
-            // 是否重复
+            // 是否重复  判断添加的节点是不是已经存在
             Set<String> children = parent.getChildren();
             if (children.contains(childName)) {
                 throw new KeeperException.NodeExistsException();
             }
-
+            //这里主要是修改服务端的摘要信息
             nodes.preChange(parentName, parent);
 
             //
@@ -518,12 +518,21 @@ public class DataTree {
                 parent.stat.setPzxid(zxid);
             }
 
-            // 创建并添加Node
+            /**
+             * 创建子节点信息,这就是真正的存到 内存中的数据结构，存进去的是一个DataNode类
+             * class DataNode implements Record
+             * ConcurrentHashMap<String, DataNode> nodes   存储位置 class NodeHashMapImpl implements NodeHashMap
+             */
             DataNode child = new DataNode(data, longval, stat);
-            parent.addChild(childName);
-
+            // 加入了 DataNode 的 一个 Set<String> children 中
+             parent.addChild(childName);
+            //把父节点加入到摘要信息的计算中
             nodes.postChange(parentName, parent);
             nodeDataSize.addAndGet(getNodeSize(path, child.data));
+            /**
+             * 把子节点信息加入到zookeeper内存数据库中，到此子节点信息加入了内存数据库，父节点在内存数据库中的状态信息也完成了更新
+             *  private final NodeHashMap nodes, 实现类 是NodeHashMapImpl ，加入到了一个 ConcurrentHashMap中
+             */
             nodes.put(path, child);
 
             //
@@ -569,12 +578,12 @@ public class DataTree {
         }
         updateWriteStat(path, bytes);
 
-        // /luban/luban123/
-        // 触发watch, dataWatches和childWatches不要和客户端里的一样理解，这两个相当于两个工具类，都是WatchManager类的实例
-        // getData("/luban/xxxx" new Wathcer() {})
+
+        //触发节点创建成功事件dataWatches和childWatches不要和客户端里的一样理解，这两个相当于两个工具类，都是WatchManager类的实例
+        // getData("/abc/xxxx" new Wathcer() {})
         dataWatches.triggerWatch(path, Event.EventType.NodeCreated);
 
-        // getChildren()
+        //触发父节点的子节点变化事件     childWatches默认是WatchManager
         childWatches.triggerWatch(parentName.equals("") ? "/" : parentName, Event.EventType.NodeChildrenChanged);
     }
 
@@ -892,6 +901,7 @@ public class DataTree {
     public volatile long lastProcessedZxid = 0;
 
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, TxnDigest digest) {
+        // 将节点存储到 内存数据库  ，确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
         ProcessTxnResult result = processTxn(header, txn);
         compareDigest(header, txn, digest);
         return result;
@@ -901,6 +911,7 @@ public class DataTree {
         return this.processTxn(header, txn, false);
     }
 
+    // “把事物作用到内存数据库”，create  delete等
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, boolean isSubTxn) {
         ProcessTxnResult rc = new ProcessTxnResult();
 
@@ -916,7 +927,7 @@ public class DataTree {
                 CreateTxn createTxn = (CreateTxn) txn;
                 rc.path = createTxn.getPath();
 
-                // 创建node
+                // 以创建节点为切入点，分析这个节点到底存到哪了，是个什么数据结构
                 createNode(
                     createTxn.getPath(),
                     createTxn.getData(),

@@ -49,7 +49,10 @@ import org.apache.zookeeper.proto.RequestHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
+/** 这个类实现了 Watcher接口，所以除了其他功能外，他也是个监听器，他是个抽象类，子类是NIOServerCnxn
+ * 所以 NIOServerCnxn 附有监听器的功能。最终将这个监听器添加到了 WatchManager的 Set<Watcher>> watchTable = new HashMap<>();
+ *
+ *
  * Interface to a Server connection - represents a connection from a client
  * to the server.
  */

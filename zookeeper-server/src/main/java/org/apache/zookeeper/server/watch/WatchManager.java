@@ -43,7 +43,7 @@ public class WatchManager implements IWatchManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(WatchManager.class);
 
-    // path: Set<ServerCnxn>
+    // path: Set<ServerCnxn>  一个path会有多个watch，所有 value是 Set，  这个Watcher实现类是 ServerCnxn
     private final Map<String, Set<Watcher>> watchTable = new HashMap<>();
 
     private final Map<Watcher, Set<String>> watch2Paths = new HashMap<>();
@@ -82,7 +82,7 @@ public class WatchManager implements IWatchManager {
         if (list == null) {
             // don't waste memory if there are few watches on a node
             // rehash when the 4th entry is added, doubling size thereafter
-            // seems like a good compromise
+            // seems like a good compromise  英文解释，zk真是注重内存
             list = new HashSet<>(4);
             watchTable.put(path, list);
         }
@@ -134,12 +134,13 @@ public class WatchManager implements IWatchManager {
         Set<Watcher> watchers = new HashSet<>();
 
         // 拿到当前path的各层父path进行递归
-        // /luban123/bb/g1  // data（） children（）  watcher(递归)
+        // /abc123/bb/g1  // data（） children（）  watcher(递归)
         PathParentIterator pathParentIterator = getPathParentIterator(path);
         synchronized (this) {
             // 遍历路径
             for (String localPath : pathParentIterator.asIterable()) {
                 // 当前path对应的节点上有几个watcher(可能存在多个客户端，而且每个客户端对同一节点)
+                // Map<String, Set<Watcher>> watchTable  这就是存储watch的数据结构，在哪存的？Watcher实现类是哪个？
                 Set<Watcher> thisWatchers = watchTable.get(localPath);
 
                 if (thisWatchers == null || thisWatchers.isEmpty()) {

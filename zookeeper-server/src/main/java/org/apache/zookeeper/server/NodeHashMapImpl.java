@@ -30,7 +30,7 @@ import org.apache.zookeeper.server.util.AdHash;
  */
 public class NodeHashMapImpl implements NodeHashMap {
 
-    // /luban  -
+    // 这就是 zk的内存数据库
     private final ConcurrentHashMap<String, DataNode> nodes;
     private final boolean digestEnabled;
     private final DigestCalculator digestCalculator;

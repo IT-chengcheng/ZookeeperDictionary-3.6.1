@@ -282,12 +282,13 @@ public class FileTxnLog implements TxnLog, Closeable {
                 lastZxidSeen,
                 hdr.getType());
         } else {
+            //设置lastZxidSeen为当前请求的事物id
             lastZxidSeen = hdr.getZxid();
         }
         if (logStream == null) {
             LOG.info("Creating new log file: {}", Util.makeLogName(hdr.getZxid()));
 
-            // 日志写入的文件
+            //如果日志输出流不存在，那么创建一个，日志文件的名称为logDir+当前请求事物id
             logFileWrite = new File(logDir, Util.makeLogName(hdr.getZxid()));
             fos = new FileOutputStream(logFileWrite);
             logStream = new BufferedOutputStream(fos);
@@ -295,9 +296,11 @@ public class FileTxnLog implements TxnLog, Closeable {
 
 
             FileHeader fhdr = new FileHeader(TXNLOG_MAGIC, VERSION, dbId);
+            //序列化文件头信息到日志流中
             fhdr.serialize(oa, "fileheader");
             // 这里是先向文件中写入一下magic数
             // Make sure that the magic number is written before padding.
+            //文件头信息刷到文件中
             logStream.flush();
             filePadding.setCurrentSize(fos.getChannel().position());
             streamsToFlush.add(fos);
@@ -311,10 +314,12 @@ public class FileTxnLog implements TxnLog, Closeable {
             throw new IOException("Faulty serialization for header " + "and txn");
         }
         Checksum crc = makeChecksumAlgorithm();
+        //计算本次事物的crc码，然后写入log
         crc.update(buf, 0, buf.length);
         oa.writeLong(crc.getValue(), "txnEntryCRC");
 
         // 将buf写入oa，对应的就是File中，但是还没有提交，在commit方法中才会提交
+        //把本次事物写入log文件
         Util.writeTxnBytes(oa, buf);
 
         return true;
@@ -398,7 +403,7 @@ public class FileTxnLog implements TxnLog, Closeable {
 
     /**
      * commit the logs. make sure that everything hits the
-     * disk
+     * disk  把事物日志刷新到磁盘
      */
     public synchronized void commit() throws IOException {
         // 这里才会写入文件

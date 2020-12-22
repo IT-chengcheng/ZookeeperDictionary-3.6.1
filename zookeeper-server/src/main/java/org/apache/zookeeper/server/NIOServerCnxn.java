@@ -50,6 +50,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ *  这个类的父类 ServerCnxn 实现了 Watcher接口，所以除了其他功能外，他也是个监听器
+ * 最终将这个监听器添加到了 WatchManager的 Set<Watcher>> watchTable = new HashMap<>();
+ *
  * This class handles communication with clients using NIO. There is one per
  * client, but only one thread doing the communication.
  */
