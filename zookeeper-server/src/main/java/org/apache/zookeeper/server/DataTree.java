@@ -466,16 +466,17 @@ public class DataTree {
      * @throws NoNodeException
      */
     public void createNode(final String path, byte[] data, List<ACL> acl, long ephemeralOwner, int parentCVersion, long zxid, long time, Stat outputStat) throws KeeperException.NoNodeException, KeeperException.NodeExistsException {
+        // 举例 path = /busidomain/csf/centers/unitodo/services/unitodo_unitodoToreadSVImpl_queryToread
         int lastSlash = path.lastIndexOf('/');
-        String parentName = path.substring(0, lastSlash); // 父节点
-        String childName = path.substring(lastSlash + 1); // 本节点
+        String parentName = path.substring(0, lastSlash); // 父节点 = /busidomain/csf/centers/unitodo/services
+        String childName = path.substring(lastSlash + 1); // 本节点 = unitodo_unitodoToreadSVImpl_queryToread
         //创建本节点的状态信息
         StatPersisted stat = createStat(zxid, time, ephemeralOwner);
 
         //在zookeeper内存数据库中获取父节点,就是个map  -> ConcurrentHashMap<String, DataNode> nodes
         DataNode parent = nodes.get(parentName);
 
-        if (parent == null) {
+        if (parent == null) {// 也就是说 必须创建父节点
             throw new KeeperException.NoNodeException();
         }
         synchronized (parent) {
@@ -524,7 +525,12 @@ public class DataTree {
              * ConcurrentHashMap<String, DataNode> nodes   存储位置 class NodeHashMapImpl implements NodeHashMap
              */
             DataNode child = new DataNode(data, longval, stat);
-            // 加入了 DataNode 的 一个 Set<String> children 中
+            /**
+             * 加入了 DataNode 的 一个 Set<String> children 中，注意加的是 unitodo_unitodoToreadSVImpl_queryToread  短路径
+             * 也就是说 map中存的父节点 key是 /busidomain/csf/centers/unitodo/services  -> value:DataNode
+             *子节点 key是 /busidomain/csf/centers/unitodo/services/unitodo_unitodoToreadSVImpl_queryToread  -> value:DataNode
+             *        父节点的Set结合中(每一个DataNode都有一个Set集合)存的是unitodo_unitodoToreadSVImpl_queryToread
+             */
              parent.addChild(childName);
             //把父节点加入到摘要信息的计算中
             nodes.postChange(parentName, parent);
@@ -532,6 +538,8 @@ public class DataTree {
             /**
              * 把子节点信息加入到zookeeper内存数据库中，到此子节点信息加入了内存数据库，父节点在内存数据库中的状态信息也完成了更新
              *  private final NodeHashMap nodes, 实现类 是NodeHashMapImpl ，加入到了一个 ConcurrentHashMap中
+             *  path -> /busidomain/csf/centers/unitodo/services/unitodo_unitodoToreadSVImpl_queryToread
+             *  child  -> 就是刚才创建的DataNode
              */
             nodes.put(path, child);
 

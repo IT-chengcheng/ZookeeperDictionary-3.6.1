@@ -873,6 +873,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             /** 很重要的一个方法，里面做了很多事  zxid
              *  初始化ZKDatabase，加载数据
              * 这里还会把之前的session给加载出来，放入到sessionsWithTimeouts中
+             * 也会从硬盘中，加载出快照，然后放入到内存数据库，其实就是个持久化功能
              */
             zks.startdata();
 

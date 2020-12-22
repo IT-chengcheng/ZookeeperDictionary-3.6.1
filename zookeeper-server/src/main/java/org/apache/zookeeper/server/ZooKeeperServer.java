@@ -486,6 +486,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         if (zkDb.isInitialized()) {
             setZxid(zkDb.getDataTreeLastProcessedZxid());
         } else {
+            // 加载磁盘中的快照，然后存到内存中
             setZxid(zkDb.loadDataBase());
         }
 
@@ -665,7 +666,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             zkDb = new ZKDatabase(this.txnLogFactory);
         }
         if (!zkDb.isInitialized()) {
-            // 加载数据， 以及快照
+            // 加载数据， 以及快照，然后放入到内存数据库
             loadData();
         }
     }
