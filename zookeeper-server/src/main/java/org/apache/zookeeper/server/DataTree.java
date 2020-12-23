@@ -473,7 +473,7 @@ public class DataTree {
         //创建本节点的状态信息
         StatPersisted stat = createStat(zxid, time, ephemeralOwner);
 
-        //在zookeeper内存数据库中获取父节点,就是个map  -> ConcurrentHashMap<String, DataNode> nodes
+        // 获取在zookeeper内存数据库中获取父节点,   nodes就是个map  -> ConcurrentHashMap<String, DataNode> nodes
         DataNode parent = nodes.get(parentName);
 
         if (parent == null) {// 也就是说 必须创建父节点
