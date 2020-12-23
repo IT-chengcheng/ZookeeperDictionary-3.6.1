@@ -919,7 +919,7 @@ public class DataTree {
         return this.processTxn(header, txn, false);
     }
 
-    // “把事物作用到内存数据库”，create  delete等
+    // “把事物作用到内存数据库”，create  delete等， 入参 Record txn  实现类是CreateTxn 里面放的就是节点path+value
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, boolean isSubTxn) {
         ProcessTxnResult rc = new ProcessTxnResult();
 
@@ -2003,9 +2003,9 @@ public class DataTree {
         StatPersisted stat = new StatPersisted();
         stat.setCtime(time);
         stat.setMtime(time);
-        stat.setCzxid(zxid);
-        stat.setMzxid(zxid);
-        stat.setPzxid(zxid);
+        stat.setCzxid(zxid);// 引起这个znode创建的zxid，创建节点的事务的zxid
+        stat.setMzxid(zxid);// znode最后更新的zxid
+        stat.setPzxid(zxid);// znode最后更新的子节点zxid
         stat.setVersion(0);
         stat.setAversion(0);
         stat.setEphemeralOwner(ephemeralOwner);

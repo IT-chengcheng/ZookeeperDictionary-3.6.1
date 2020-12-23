@@ -168,6 +168,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     private ZKDatabase zkDb;
     private ResponseCache readResponseCache;
     private ResponseCache getChildrenResponseCache;
+    // 原子操作，生成 zxid
     private final AtomicLong hzxid = new AtomicLong(0);
     public static final Exception ok = new Exception("No prob");
     protected RequestProcessor firstProcessor;
@@ -571,7 +572,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     long getNextZxid() {
-        // hzxid会在初始化DataBaseTree的时候初始化
+        // hzxid会在初始化DataBaseTree的时候初始化.
         return hzxid.incrementAndGet();
     }
 

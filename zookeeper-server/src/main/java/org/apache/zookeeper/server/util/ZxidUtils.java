@@ -27,7 +27,7 @@ public class ZxidUtils {
         return zxid & 0xffffffffL;
     }
     public static long makeZxid(long epoch, long counter) {
-        // 一个long有64位，高32位用来存放epoch，低32位用来存放自增id
+        // 一个long有64位，高32位用来存放epoch，低32位用来存放自增id.
         // 00000000000001  000000000000000
         return (epoch << 32L) | (counter & 0xffffffffL);
     }
