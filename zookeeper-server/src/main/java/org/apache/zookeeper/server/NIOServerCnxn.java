@@ -367,7 +367,7 @@ public class NIOServerCnxn extends ServerCnxn {
                          * 处理各种命令
                          * 处理 增删查改
                          */
-                        readPayload();
+                            readPayload();
                     } else {
                         // four letter words take care
                         // need not do anything else
@@ -451,7 +451,7 @@ public class NIOServerCnxn extends ServerCnxn {
         if (!isZKServerRunning()) {
             throw new IOException("ZooKeeperServer not running");
         }
-        // 这里也会处理重连
+        // 创建session等一系列 操作
         zkServer.processConnectRequest(this, incomingBuffer);
         initialized = true;
     }

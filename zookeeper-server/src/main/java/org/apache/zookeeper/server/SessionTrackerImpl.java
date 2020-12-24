@@ -59,7 +59,7 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
             this.timeout = timeout;
             isClosing = false;
         }
-
+        // 每一个客户端与服务端的连接都会创建一个 SessionImpl 对象，每一个SessionImpl对象都会有一个 sessionid
         final long sessionId;
         final int timeout;
         boolean isClosing;
