@@ -31,6 +31,7 @@ public class Time {
      * @return The time in milliseconds from some arbitrary point in time.
      */
     public static long currentElapsedTime() {
+        // System.nanoTime() 获取系统纳秒时间
         return System.nanoTime() / 1000000;
     }
 

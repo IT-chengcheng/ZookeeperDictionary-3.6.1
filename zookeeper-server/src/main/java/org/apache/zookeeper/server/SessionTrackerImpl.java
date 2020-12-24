@@ -88,8 +88,7 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
      * Use ">>> 8", not ">> 8" to make sure that the high order 1 byte is entirely up to the server Id(@see ZOOKEEPER-1622).
      * @param id server Id
      * @return the Session Id
-     *
-     * id
+     *  生成 sessionID
      */
     public static long initializeNextSessionId(long id) {
         long nextSid;
@@ -105,7 +104,9 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
 
     public SessionTrackerImpl(SessionExpirer expirer, ConcurrentMap<Long, Integer> sessionsWithTimeout, int tickTime, long serverId, ZooKeeperServerListener listener) {
         super("SessionTracker", listener);
+        // 这个expirer 就是 ZookeeperServer
         this.expirer = expirer;
+        // ExpiryQueue 是个session超时管理器
         this.sessionExpiryQueue = new ExpiryQueue<SessionImpl>(tickTime);
         this.sessionsWithTimeout = sessionsWithTimeout;  // 持久化的时候，只持久化了sessionId和Timeout，不用持久化SessionImpl
         this.nextSessionId.set(initializeNextSessionId(serverId));  //
@@ -165,7 +166,7 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
                 for (SessionImpl s : sessionExpiryQueue.poll()) {
                     ServerMetrics.getMetrics().STALE_SESSIONS_EXPIRED.add(1);
                     setSessionClosing(s.sessionId);
-                    // 关闭session
+                    // 关闭session,expirer是ZookeeperServer
                     expirer.expire(s);
                 }
             }
@@ -272,8 +273,6 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
         // 跟踪一个Session
         // 1. 先生成一个SessionImpl对象，并放入sessionsById中保存
         // 2. 更新sessionExpiryQueue中保存的当前session的过期时间点
-
-        //
         SessionImpl session = sessionsById.get(id);
         if (session == null) {
             // sessionId

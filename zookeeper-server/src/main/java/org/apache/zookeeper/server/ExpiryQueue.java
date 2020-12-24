@@ -40,6 +40,7 @@ import org.apache.zookeeper.common.Time;
 public class ExpiryQueue<E> {
 
     //记录了每一个对象的归一化后的超时时间点，key是被管理的对象，value是超时时间点
+    //  key的可能是 SessionImpl（大多数情况就是这个类）  ，也可能是 NIOServerCnxn
     private final ConcurrentHashMap<E, Long> elemMap = new ConcurrentHashMap<E, Long>();
     /**
      * The maximum number of buckets is equal to max timeout/expirationInterval,
@@ -55,9 +56,10 @@ public class ExpiryQueue<E> {
      *  不同的连接超时的时间点是不同的
      *[](/Image-Architecture/Zookeeper/image7.jpg)
      * zookeeper会使用expirationInterval作为基准把每一个连接的超时时间点归一化为expirationInterval整数倍，归一化的计算方式为
+     * timeoutPoint =  CurrentTime+SessionTimeOut
      * normalizeTimeout = (timeoutPoint/expirationInterval +1) * expirationInterval
      */
-    private final int expirationInterval; // 就是tickTime
+    private final int expirationInterval; // 就是tickTime，tickTime默认是2000毫秒，所以expirationInterval默认也是2s
 
     public ExpiryQueue(int expirationInterval) {
         this.expirationInterval = expirationInterval;
@@ -65,6 +67,27 @@ public class ExpiryQueue<E> {
     }
 
     private long roundToNextInterval(long time) {
+        /**
+         * time就是系统的毫秒时间+sessionTimeout（默认好像是30s），expirationInterval就是tickTime，也就是心跳时间，默认是2000毫秒
+         * 为什么要这样计算过期时间？ 直接 nowTime + timeout不就行了？
+         * 如果一台zk  有100个客户端连接，也就是100个session，正常思路：zk会不断遍历这100个session，查看是否过期，这样效率太低了。
+         * 这就引出zk的分桶策略：
+         * 1、计算出过期时间 T = nowTime + timeout
+         * 2、( T / expirationInterval + 1) * expirationInterval  跟 (T / expirationInterval) * expirationInterval 有啥区别
+         * 先举个例子：  (3/2 + 1 ) * 2 = 4 > 3 ;  ( 3/2 ) * 2 = 2 < 3
+         * 正常过期时间 肯定是 T = nowTime + timeout
+         * ( T / expirationInterval + 1) * expirationInterval 这样做的目的就是 计算出一个过期时间 newT
+         * 这个newT  < 1 > 首先肯定比 T 大，但是不会大很多 也就是说 newT 约等于 T
+         *  (10/5 + 1 ) * 5 = 15;  (11/5 + 1 ) * 5 = 15 ; (12/5 + 1 ) * 5 = 15; (13/5 + 1 ) * 5 = 15 ..
+         *   10、11、12、13、14  这4个过期时间就都在一个桶里，可以理解为他15就是一个桶。
+         *  数据结构  ConcurrentHashMap<Long, Set<E>> expiryMap : key是超时时间点，value是相同超时时间点的对象集合
+         *                                                 这样  ->  ZK在进行扫描的时候，只需要扫描一个桶即可
+         *          ConcurrentHashMap<E, Long> elemMap  记录了每一个对象的归一化后的超时时间点，key是被管理的对象，value是超时时间点
+         *
+         *         < 2 > 然后 这个 newT是 expirationInterval 整数倍
+         *         这样让每个 Session的过期时间 和 检查时间 在一个时间节点上。否则的话就会出现一个问题：ZK检查完毕的1毫秒后，
+         *         就有一个Session新过期了，这种情况肯定是不好
+         **/
         return (time / expirationInterval + 1) * expirationInterval;
     }
 
@@ -99,7 +122,7 @@ public class ExpiryQueue<E> {
     public Long update(E elem, int timeout) {  // 30s
         // 之前保存的session的过期时间点
         Long prevExpiryTime = elemMap.get(elem);
-        long now = Time.currentElapsedTime();
+        long now = Time.currentElapsedTime();// 可以理解为获取的就是系统毫秒时间
 
         // 基于当前时间和设置的超时时间，以及ticktime ,计算出下一个过期时间
         // 比如当前时间 20s.111毫秒   timeout是10秒，那么过期时间不是30s.111毫秒，而是32s

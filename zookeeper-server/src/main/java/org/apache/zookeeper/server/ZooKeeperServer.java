@@ -581,7 +581,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     private void close(long sessionId) {
-        // 清空关于session的map，删除临时节点   prepReqeustProcessor sync final
+        // 清空关于session的map，删除临时节点  prepReqeustProcessor -> sync -> final
         Request si = new Request(null, sessionId, 0, OpCode.closeSession, null, null);
         submitRequest(si);
     }
@@ -614,7 +614,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             Long.toHexString(sessionId),
             session.getTimeout());
 
-        close(sessionId); //
+        close(sessionId); //就是新建了一个删除session的请求，然后提交请求，点进去看看！
     }
 
     public static class MissingSessionException extends IOException {
@@ -674,11 +674,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
     public synchronized void startup() {
 
-        // 1、sessionTracker是一个线程，用来关闭过期session
+        // 1、sessionTracker是一个线程，用来关闭过期session（主要是还是作用于创建临时节点的连接）
         if (sessionTracker == null) {
+            // 创建了一个session跟踪器(是个线程) SessionTrackerImpl extends Thread implements SessionTracker，
             createSessionTracker();
         }
-        //2、监控session
+        //2、开启SessionTrackerImpl线程  开始监控session
         startSessionTracker();
 
         // 3、设置RequestProcessor chain,并且开启第一个线程  ((PrepRequestProcessor) firstProcessor).start();
@@ -745,10 +746,12 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     protected void createSessionTracker() {
+        // SessionTrackerImpl 是个线程
         sessionTracker = new SessionTrackerImpl(this, zkDb.getSessionWithTimeOuts(), tickTime, createSessionTrackerServerId, getZooKeeperServerListener());
     }
 
     protected void startSessionTracker() {
+        // 开启线程
         ((SessionTrackerImpl) sessionTracker).start();
     }
 
