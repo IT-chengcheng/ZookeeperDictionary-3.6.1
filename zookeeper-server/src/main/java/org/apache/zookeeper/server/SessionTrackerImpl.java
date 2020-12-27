@@ -157,9 +157,11 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
     public void run() {
         try {
             while (running) {
-                // 0
+
                 long waitTime = sessionExpiryQueue.getWaitTime();  //
                 if (waitTime > 0) {
+                    // 因为 ExpiryQueue的nextExpirationTime 是这样的 12:01:10  12:01:12  12:01:14  12:01:10  12:01:16  ..
+                    // 这里做的就是 看看到点了吗，到点了就放行，继续往下执行，类似于一个定时任务，每隔2s执行一次
                     Thread.sleep(waitTime);
                     continue;
                 }
@@ -167,6 +169,7 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
                 // 拿到过期的session集合
                 for (SessionImpl s : sessionExpiryQueue.poll()) {
                     ServerMetrics.getMetrics().STALE_SESSIONS_EXPIRED.add(1);
+                    // 先将 SessionImpl  的 isClosing属性改为 true，意思是关闭session，后面的请求看到是true后，不在做任何操作
                     setSessionClosing(s.sessionId);
                     // 关闭session,expirer是ZookeeperServer
                     expirer.expire(s);
@@ -178,7 +181,7 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
         LOG.info("SessionTrackerImpl exited loop!");
     }
 
-    // 续期
+    // 给session续期
     public synchronized boolean touchSession(long sessionId, int timeout) {
         /**
          *  1、检查该会话是否被关闭，如果关闭，则不再激活。

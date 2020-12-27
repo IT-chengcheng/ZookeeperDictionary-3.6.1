@@ -50,6 +50,16 @@ public class ExpiryQueue<E> {
     //存储了相同超时时间点的所有对象，key是超时时间点，value是相同超时时间点的对象集合
     private final ConcurrentHashMap<Long, Set<E>> expiryMap = new ConcurrentHashMap<Long, Set<E>>();
 
+    /**
+     * 这是一个时间点，在这个时间去检查当前有没有过期的session，每隔 expirationInterval ，nextExpirationTime就会增加expirationInterval
+     * 举例：nextExpirationTime现在是 12:01:10   expirationInterval默认是 2000毫秒
+     *        12:01:10 检查一次过期对象，所谓的检查就是 用 nextExpirationTime 比较 expiryMap的key值，如果 nextExpirationTime > key
+     *                                                               那么这个key时间点的所有对象 就该让它过期
+     *        12:01:10 + 2000毫秒 = 12:01：12   再次检查一次过期对象
+     *        12:01:12 + 2000毫秒 = 12:01：14   再次检查一次过期对象
+     *        12:01:14 + 2000毫秒 = 12:01：16   再次检查一次过期对象
+     *          ........依次类推。。。。。。
+     */
     private final AtomicLong nextExpirationTime = new AtomicLong();
 
     /**
@@ -172,7 +182,8 @@ public class ExpiryQueue<E> {
      */
     public long getWaitTime() {
         long now = Time.currentElapsedTime();
-        // 下个过期时间  xxxx .04s   02,,
+
+        // nextExpirationTime 刚初始化的时候，默认是系统当前时间，以后会每隔 expirationInterval进行增加 expirationInterval，看属性注释
         long expirationTime = nextExpirationTime.get();
         return now < expirationTime ? (expirationTime - now) : 0L;
     }
@@ -187,15 +198,18 @@ public class ExpiryQueue<E> {
      */
     public Set<E> poll() {
         long now = Time.currentElapsedTime();
-        // 02s
+
         long expirationTime = nextExpirationTime.get();   // <=now
         if (now < expirationTime) {
+            /**
+             * expirationTime一定要小于 now,才说明当前session要过期
+             */
             return Collections.emptySet();
         }
 
         Set<E> set = null;
 
-        // 06
+        // 就是一个定时任务， 2s，2s的往后递增
         long newExpirationTime = expirationTime + expirationInterval; // expirationInterval就是tickTime
 
         // 先设置下一个过期时间
