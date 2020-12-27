@@ -628,6 +628,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     void touch(ServerCnxn cnxn) throws MissingSessionException {
+        /**
+         *  1、检查该会话是否被关闭，如果关闭，则不再激活。
+         * 2、计算新的超时时间
+         * 3、迁移会话（从老桶到新桶）
+         */
         if (cnxn == null) {
             return;
         }
@@ -1157,8 +1162,14 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             }
         }
         try {
-            // 这里会更新session的过期时间
+            /**
+             * client会通过发送请求 或者 心跳请求来保持会话的有效性，这个过程叫会话激活：touchSession
+             * 1、检查该会话是否被关闭，如果关闭，则不再激活。
+             * 2、计算新的超时时间
+             * 3、迁移会话（从老桶到新桶）
+             */
             touch(si.cnxn);
+
             boolean validpacket = Request.isValid(si.type);
             if (validpacket) {
                 // 还没研究

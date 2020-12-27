@@ -45,10 +45,11 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
 
     private static final Logger LOG = LoggerFactory.getLogger(SessionTrackerImpl.class);
 
+  // session的id与session本体做映射的一个字典
     protected final ConcurrentHashMap<Long, SessionImpl> sessionsById = new ConcurrentHashMap<Long, SessionImpl>();
 
     private final ExpiryQueue<SessionImpl> sessionExpiryQueue;
-
+// 用于标示session的超时时间
     private final ConcurrentMap<Long, Integer> sessionsWithTimeout;
     private final AtomicLong nextSessionId = new AtomicLong();  // 0
 
@@ -88,9 +89,10 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
      * Use ">>> 8", not ">> 8" to make sure that the high order 1 byte is entirely up to the server Id(@see ZOOKEEPER-1622).
      * @param id server Id
      * @return the Session Id
-     *  生成 sessionID
+     *
      */
     public static long initializeNextSessionId(long id) {
+        // 获取下一个连接的sessionID -> 简单来说，前7位确定了所在的机器，后57位使用当前时间的毫秒表示进行随机。
         long nextSid;
         nextSid = (Time.currentElapsedTime() << 24) >>> 8;
         nextSid = nextSid | (id << 56);
@@ -178,6 +180,11 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
 
     // 续期
     public synchronized boolean touchSession(long sessionId, int timeout) {
+        /**
+         *  1、检查该会话是否被关闭，如果关闭，则不再激活。
+         * 2、计算新的超时时间
+         * 3、迁移会话（从老桶到新桶）
+         */
         SessionImpl s = sessionsById.get(sessionId);
 
         if (s == null) {
@@ -185,11 +192,11 @@ public class SessionTrackerImpl extends ZooKeeperCriticalThread implements Sessi
             return false;
         }
 
-        if (s.isClosing()) {
+        if (s.isClosing()) { // 如果关闭，则不再激活。
             logTraceTouchClosingSession(sessionId, timeout);
             return false;
         }
-
+ // 计算新的超时时间
         updateSessionExpiry(s, timeout);
         return true;
     }

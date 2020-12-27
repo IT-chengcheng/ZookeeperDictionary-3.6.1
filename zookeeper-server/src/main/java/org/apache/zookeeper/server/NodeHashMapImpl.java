@@ -30,7 +30,11 @@ import org.apache.zookeeper.server.util.AdHash;
  */
 public class NodeHashMapImpl implements NodeHashMap {
 
-    // 这就是 zk的内存数据库
+    /**
+     * 这就是 zk的内存数据库
+     * 所有ZNode被以平铺的方式保存
+     * key为ZNode的完整路径
+     */
     private final ConcurrentHashMap<String, DataNode> nodes;
     private final boolean digestEnabled;
     private final DigestCalculator digestCalculator;
