@@ -24,6 +24,7 @@ import org.apache.zookeeper.server.ZooKeeperServerListener;
 
 /**
  * Local session tracker.
+ *  集群 follow observer 使用的 sessionTracker
  */
 public class LocalSessionTracker extends SessionTrackerImpl {
 

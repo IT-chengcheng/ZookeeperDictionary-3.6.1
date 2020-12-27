@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * The leader session tracker tracks local and global sessions on the leader.
+ * 集群 leader 使用的 sessionTracker
  */
 public class LeaderSessionTracker extends UpgradeableSessionTracker {
 

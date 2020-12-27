@@ -778,6 +778,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
         volatile boolean running = true;
 
+        // 这是内部类 线程  ResponderThread
         @Override
         public void run() {
             try {
@@ -1366,6 +1367,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
     boolean shuttingDownLE = false;
 
+    // 这是 QuorumPeer 线程
     @Override
     public void run() {
         updateThreadName();

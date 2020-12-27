@@ -751,11 +751,16 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     protected void createSessionTracker() {
-        // SessionTrackerImpl 是个线程
+        /** 注意： 单机模式 ，用的是  SessionTrackerImpl   ，SessionTrackerImpl 是个线程
+         *  集群模式，点入子类看   （都是SessionTrackerImpl的子类）
+         */
         sessionTracker = new SessionTrackerImpl(this, zkDb.getSessionWithTimeOuts(), tickTime, createSessionTrackerServerId, getZooKeeperServerListener());
     }
 
     protected void startSessionTracker() {
+        /** 注意： 单机模式 ，用的是  SessionTrackerImpl   ，SessionTrackerImpl 是个线程
+         *  集群模式，点入子类看， （都是SessionTrackerImpl的子类）
+         */
         // 开启线程
         ((SessionTrackerImpl) sessionTracker).start();
     }
