@@ -852,7 +852,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
             acceptThread.start();
         }
 
-        // 暂时没有研究
+        // 检测超时连接，跟处理session超时的思路大体一致
         if (expirerThread.getState() == Thread.State.NEW) {
             expirerThread.start();
         }

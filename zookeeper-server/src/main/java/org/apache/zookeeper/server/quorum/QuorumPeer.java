@@ -1070,12 +1070,13 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         return quorumStats;
     }
 
+    // 重写了 Thread的 start（）方法
     @Override
     public synchronized void start() {
         // 集群模式下，服务启动步骤
         // 1. 加载DataBase
         // 2. 启动NIOServerCnxnFactory
-        // 3. 启动adminServer
+        // 3. 启动adminServer  就是一个Jetty服务，一个管理界面，可以查看zk支持的命令等等
         // 4. 初始化领导者选举策略
         // 5. 调用本类的run方法，开始进行领导者选举，并开始处理客户端请求
 
@@ -1083,23 +1084,24 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             throw new RuntimeException("My id " + myid + " not in the peer list");
         }
 
-        // 初始化DataTree
+        // 1、初始化DataTree
         loadDataBase();
-        // 启动AcceptorThread SelectorThread
+
+        // 2、启动AcceptorThread SelectorThread
         startServerCnxnFactory();
 
-        try {
+        try {// 3. 启动Jetty服务
             adminServer.start();
         } catch (AdminServerException e) {
             LOG.warn("Problem starting AdminServer", e);
             System.out.println(e);
         }
 
-        // 初始化领导者选举，包括两个应用层面的线程和队列，也包括传输层的线程和队列
+        // 4、初始化领导者选举，包括两个应用层面的线程和队列，也包括传输层的线程和队列
         startLeaderElection();
 
         startJvmPauseMonitor();
-        // 启动线程，run
+        // 5、启动线程，run
         super.start();
     }
 

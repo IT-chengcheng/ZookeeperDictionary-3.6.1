@@ -679,6 +679,9 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
 
     public synchronized void startup() {
 
+        // 注意子类实现！！！
+
+
         // 1、sessionTracker是一个线程，用来关闭过期session（主要是还是作用于创建临时节点的连接）
         if (sessionTracker == null) {
             // 创建了一个session跟踪器(是个线程) SessionTrackerImpl extends Thread implements SessionTracker，
@@ -723,6 +726,10 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     protected void setupRequestProcessors() {
+
+        //注意子类实现，集群模式使用的都是子类，单机模式使用的是本类
+
+
         // PrepRequestProcessor-->SyncRequestProcessor-->FinalRequestProcessor
         // 1. 先启动SyncRequestProcessor线程
         // 2. 再启动PrepRequestProcessor线程

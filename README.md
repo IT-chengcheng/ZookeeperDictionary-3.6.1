@@ -3,9 +3,9 @@
 ## 涉及内容
 + 1、zookeeper服务端，客户端启动流程
 + 2、IO模型，线程模型，以及各种RequestProcessor的分析
-+ 3、单个命令执行过程分析，比如create del  ping
++ 3、单个命令的完整执行过程分析，比如create del  ping
 + 4、内存数据库，快照源码分析
-+ 5、临时节点源码以及session机制  Session激活（续约）分桶机制 源码分析
++ 5、session机制，session创建，管理，激活，清理，重连等源码分析
 + 6、领导选举 源码分析
 + 7、leader  follower 同步数据，源码分析
 + 8、watch机制 源码分析

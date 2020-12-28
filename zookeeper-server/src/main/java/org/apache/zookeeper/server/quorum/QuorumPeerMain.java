@@ -232,8 +232,10 @@ public class QuorumPeerMain {
                 quorumPeer.setJvmPauseMonitor(new JvmPauseMonitor(config));
             }
 
-            // quorumPeer是一个线程
+            // quorumPeer是一个线程，线程run()方法开始领导选举，选举结束后，开始创建相应 server
+            // 这个线程重写了 Thread的start（）方法，点进去看看
             quorumPeer.start();
+
             ZKAuditProvider.addZKStartStopAuditLog();
 
             // 等待quorumPeer线程执行结束
