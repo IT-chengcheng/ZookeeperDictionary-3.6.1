@@ -994,7 +994,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     }
 
     private int electionType;
-
+// 选举策略，也就是执行选举的类，新版本只有 FastLeaderEection 类
     Election electionAlg;
 
     ServerCnxnFactory cnxnFactory;
@@ -1178,6 +1178,8 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
         responder.running = false;
         responder.interrupt();
     }
+
+    // 仅仅是做一些初始化
     public synchronized void startLeaderElection() {
         try {
             if (getPeerState() == ServerState.LOOKING) {
@@ -1188,7 +1190,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
             re.setStackTrace(e.getStackTrace());
             throw re;
         }
-
+        // 新版本只要一种选举策略   FastLeaderElection implements Election
         this.electionAlg = createElectionAlgorithm(electionType);
     }
 

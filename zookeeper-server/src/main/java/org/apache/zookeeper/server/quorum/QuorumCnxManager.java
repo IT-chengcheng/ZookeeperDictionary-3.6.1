@@ -156,9 +156,12 @@ public class QuorumCnxManager {
     /*
      * Mapping from Peer to Thread number
      * 为其他的每个节点单独开启一个线程SendWorker来发送数据
+     * 这里是一个节点一个线程，下面的属性是一个节点的一个发送队列
      */
-    final ConcurrentHashMap<Long, SendWorker> senderWorkerMap;  //
-    // 当前节点需要发送给其他的数据（选票信息） key为其他节点serverId
+    final ConcurrentHashMap<Long, SendWorker> senderWorkerMap;
+
+    // 当前节点需要发送给其他的数据（选票信息） key为其他节点serverId，value是该节点的发送队列
+    // 也就是说 每个集群的的每一个节点，都有一个大容器，这个容器包含多个键值对。 一个节点IP : 一个发送队列
     final ConcurrentHashMap<Long, BlockingQueue<ByteBuffer>> queueSendMap;
     // put(2, mess)
     // put(3, mess)
@@ -434,7 +437,7 @@ public class QuorumCnxManager {
             return true;
         }
         try {
-            // QuorumConnectionReqThread，连接线程
+            // QuorumConnectionReqThread，连接线程，进入  QuorumConnectionReqThread -> run()
             connectionExecutor.execute(new QuorumConnectionReqThread(electionAddr, sid));
             connectionThreadCnt.incrementAndGet();
         } catch (Throwable e) {
@@ -459,7 +462,7 @@ public class QuorumCnxManager {
             this.electionAddr = electionAddr;
             this.sid = sid;
         }
-
+ // QuorumConnectionReqThread 线程
         @Override
         public void run() {
             try {
@@ -723,6 +726,10 @@ public class QuorumCnxManager {
 
             /*
              * Start a new connection if doesn't have one already.
+             * computeIfAbsent 是java8的新特性，有两个参数 key  mappingFunction
+             * 只有当map中的 key为空，或者key对应的value为空时，才会执行mappingFunction，将mappingFunction的返回值放到map中
+             * 如果mappingFunction返回值也是空，则抛出异常。
+             * 这里用这个方法的目的，就是集群中所有的节点都有一个自己发送消息队列， 一个IP,一个队列
              */
             BlockingQueue<ByteBuffer> bq = queueSendMap.computeIfAbsent(sid, serverId -> new CircularBlockingQueue<>(SEND_CAPACITY));
             // 把选票数据添加到queueSendMap中sid对应的队列
@@ -757,7 +764,10 @@ public class QuorumCnxManager {
         // we are doing connection initiation always asynchronously, since it is possible that
         // the socket connection timeouts or the SSL handshake takes too long and don't want
         // to keep the rest of the connections to wait
-        // 开一个线程去连接其他服务器
+
+        /**
+         * 开一个线程去连接其他服务器,   连接好以后加入到 senderWorkerMap中
+         */
         return initiateConnectionAsync(electionAddr, sid);
     }
 
