@@ -54,6 +54,14 @@ public class SyncedLearnerTracker {
         // 当有多个QuorumVerifier时，每个QuorumVerifier都得符合过半机制
         for (QuorumVerifierAcksetPair qvAckset : qvAcksetPairs) {
             if (!qvAckset.getQuorumVerifier().containsQuorum(qvAckset.getAckset())) {
+                /**
+                 * QuorumVerifierAcksetPair 有两个属性
+                 *       private final QuorumVerifier qv; 这个类父类过半判断
+                 *       private final HashSet<Long> ackset;
+                 * qvAckset.getAckset() 就是统计完的票 是个 Set，里面放的是同时投一个节点（myid4）的 ：myid1  myid2 myid3
+                 * QuorumVerifier -> containsQuorum(Set ackset)方法
+                 *   ->  set.size() > half ?
+                 */
                 return false;
             }
         }

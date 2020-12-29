@@ -213,6 +213,7 @@ public class QuorumCnxManager {
         }
 
         ByteBuffer buffer;
+        // 由各个ZK实例中的$dataDir/myid指定
         long sid;
 
     }

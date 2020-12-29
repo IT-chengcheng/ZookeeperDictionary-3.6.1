@@ -116,16 +116,18 @@ public class FastLeaderElection implements Election {
         int version;
 
         /*
-         * Proposed leader
+         * Proposed leader 这一票推选的“候选人”的服务器ID (各个ZK实例中的$dataDir/myid)
          */ long leader;   // sid
 
         /*
-         * zxid of the proposed leader
+         * zxid of the proposed leader 这一票推选的“候选人”的事务ID。所谓事务ID即写操作的proposal ID，
+         * 其高32位是第几届，低32位是当前Leader纪元下的操作序号，亦即zxid肯定是单调递增的
          */ long zxid;  // zxid
 
         /*
-         * Epoch
-         */ long electionEpoch;  //
+         * Epoch  选举轮次，是第几轮选举   可不是第几届！！
+         * 对应 AtomicLong logicalclock
+         */ long electionEpoch;
 
         /*
          * current state of sender
@@ -133,12 +135,13 @@ public class FastLeaderElection implements Election {
 
         /*
          * Address of sender
-         */ long sid;  // sid
+         */ long sid;  // “选民”自己的服务器ID，是一个正整数，由各个ZK实例中的$dataDir/myid指定
 
         QuorumVerifier qv;
         /*
          * epoch of the proposed leader
-         */ long peerEpoch;   //
+         * 选举的届数  表示第几届选举 对应 proposedEpoch  是截取的zxid的前32位  ZxidUtils.getEpochFromZxid(rzxid)
+         */ long peerEpoch;
 
     }
 
@@ -162,9 +165,11 @@ public class FastLeaderElection implements Election {
 
             this.leader = leader;
             this.zxid = zxid;
+            // 选举的轮次 表示第几轮，  对应  AtomicLong logicalclock
             this.electionEpoch = electionEpoch;
             this.state = state;
             this.sid = sid;
+            // 选举的届数，表示第几届选举 对应proposedEpoch
             this.peerEpoch = peerEpoch;
             this.configData = configData;
         }
@@ -580,9 +585,12 @@ public class FastLeaderElection implements Election {
 
     QuorumPeer self;
     Messenger messenger;
+
+    //“选民”的选举轮次  每发起一轮新的选举，该值会加1, 对应  electionEpoch  从0开始
     AtomicLong logicalclock = new AtomicLong(); /* Election instance */
     long proposedLeader;   // sid id
     long proposedZxid;     // zxid
+    // 选举的届数  表示第几届选举 对应 peerEpoch  是截取的zxid的前32位  ZxidUtils.getEpochFromZxid(rzxid)
     long proposedEpoch;    // epoch
 
     /**
@@ -705,7 +713,7 @@ public class FastLeaderElection implements Election {
      * Send notifications to all peers upon a change in our vote
      */
     private void sendNotifications() {
-        // 遍历投票成员（非Observer节点），就是遍历所有集群中IP地址
+        // 遍历投票成员（非Observer节点），就是遍历所有集群中myid
         for (long sid : self.getCurrentAndNextConfigVoters()) {
             QuorumVerifier qv = self.getQuorumVerifier();
             ToSend notmsg = new ToSend(
@@ -714,7 +722,7 @@ public class FastLeaderElection implements Election {
                 proposedZxid,     // 本张选票当前投给了的那个节点上的最大的zxid ， 就是事务ID
                 logicalclock.get(),  // 本张选票的逻辑时钟
                 QuorumPeer.ServerState.LOOKING,  // 本节点当前的状态
-                sid,  // 把本张选票发给sid,sid就是其他服务器的 IP地址
+                sid,  // 把本张选票发给sid,sid就是其他服务器的 myid
                 proposedEpoch,  // 本张选票当前投给了的那个节点上的epoch
                 qv.toString().getBytes());
 
@@ -963,11 +971,14 @@ public class FastLeaderElection implements Election {
              * of participants has voted for it.
              */
             /**
-             * 投票箱 Long：其他节点sid（IP地址）     Vote：其他节点投的票
-             *  key 127.0.0.1: value节点1的 Vote
-             *  key 127.0.0.2: value节点2的 Vote
-             *  key 127.0.0.3: value节点2的 Vote
+             * 投票箱 Long：其他节点sid（myid）     Vote：其他节点投的票
+             *  key 1: value 节点1的 Vote
+             *  key 2: value 节点2的 Vote
+             *  key 3: value 节点2的 Vote
              *  所以节点2 成为了leader
+             *
+             * 存储有自己的和其他节点的选票。每张选票都包含上述的electionEpoch、sid、state、leader和zxid信息，
+             * 并且票箱中都只会记录每个“选民”的最近一次投票信息
              */
             Map<Long, Vote> recvset = new HashMap<Long, Vote>();
 
@@ -983,7 +994,8 @@ public class FastLeaderElection implements Election {
             int notTimeout = minNotificationInterval;
 
             synchronized (this) {
-                // 选举的时钟周期+1
+                // 选举的时钟周期+1，“选民”的选举轮次，在每个节点中以逻辑时钟logicalclock的形式存储。
+                // 每发起一轮新的选举，该值会加1。若节点重启，此值会归零。
                 logicalclock.incrementAndGet();
                 // 更新即将投出去的选票。 先投给自己, myid ,最新事务id， PeerEpoch表示当前服务器上的数据的epoch
                 updateProposal(getInitId(), getInitLastLoggedZxid(), getPeerEpoch());
@@ -1056,9 +1068,9 @@ public class FastLeaderElection implements Election {
                         }
 
                         // If notification > current, replace and send messages out
-                        // 如果接收到的选票的选举周期 大于自己当前的选举周期
+                        // 如果接收到的选票的选举轮次 大于自己当前的选举轮次
                         if (n.electionEpoch > logicalclock.get()) {
-                            logicalclock.set(n.electionEpoch); // 则修改自己的选举周期
+                            logicalclock.set(n.electionEpoch); // 则修改自己的选举轮次
                             recvset.clear();                    // 清空投票箱
 
                             // 接收到的选票更强，则本节点也投给选票所对应的服务器
@@ -1098,15 +1110,16 @@ public class FastLeaderElection implements Election {
                         // don't care about the version if it's in LOOKING state
                         recvset.put(n.sid, new Vote(n.leader, n.zxid, n.electionEpoch, n.peerEpoch));
 
-                        // 接收到的投票，加上自己
+                        // 接收到的投票，加上自己   voteSet -> SyncedLearnerTracker
                         voteSet = getVoteTracker(recvset, new Vote(proposedLeader, proposedZxid, logicalclock.get(), proposedEpoch));
 
-                        // 过半机制验证
+                        // 过半机制验证  voteSet -> SyncedLearnerTracker
                         if (voteSet.hasAllQuorums()) {
 
 
                             // Verify if there is any change in the proposed leader
-                            // 符合过半机制之后，继续从recvqueue中获取选票，
+                            // 符合过半机制之后，继续从recvqueue中获取选票，因为统计投票的时候，可能还会有其他机器陆续发来的选票
+                            // 为避免漏票，继续PK,如果新票获胜，放入队列，重新选举
                             while ((n = recvqueue.poll(finalizeWait, TimeUnit.MILLISECONDS)) != null) {
                                 if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch, proposedLeader, proposedZxid, proposedEpoch)) {
                                     /**

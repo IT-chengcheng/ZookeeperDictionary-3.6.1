@@ -565,7 +565,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
      * QuorumVerifier implementation; default (majority).
      */
 
-    //last committed quorum verifier
+    //last committed quorum verifier  实现类QuorumMaj
     private QuorumVerifier quorumVerifier;
 
     //last proposed quorum verifier
@@ -575,7 +575,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
     final Object QV_LOCK = new Object();
 
     /**
-     * My id
+     * My id  “选民”自己的服务器ID，是一个正整数，由各个ZK实例中的$dataDir/myid指定
      */
     private long myid;
 

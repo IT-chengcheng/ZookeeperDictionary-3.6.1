@@ -22,6 +22,16 @@ import org.apache.zookeeper.server.quorum.QuorumPeer.ServerState;
 
 public class Vote {
 
+    private final int version;
+
+    private final long id;// myid   proposedLeader
+
+    private final long zxid;
+
+    private final long electionEpoch;
+
+    private final long peerEpoch;
+
     public Vote(long id, long zxid) {
         this.version = 0x0;
         this.id = id;
@@ -67,15 +77,7 @@ public class Vote {
         this.version = 0x0;
     }
 
-    private final int version;
 
-    private final long id;
-
-    private final long zxid;
-
-    private final long electionEpoch;
-
-    private final long peerEpoch;
 
     public int getVersion() {
         return version;
