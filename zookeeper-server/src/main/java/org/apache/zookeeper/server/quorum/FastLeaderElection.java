@@ -933,6 +933,7 @@ public class FastLeaderElection implements Election {
     private void setPeerState(long proposedLeader, SyncedLearnerTracker voteSet) {
 
         ServerState ss = (proposedLeader == self.getId()) ? ServerState.LEADING : learningState();
+        // self 是 QuorumPeer
         self.setPeerState(ss);
         if (ss == ServerState.LEADING) {
             leadingVoteSet = voteSet;
@@ -1105,9 +1106,17 @@ public class FastLeaderElection implements Election {
 
 
                             // Verify if there is any change in the proposed leader
-                            // 符合过半机制之后，继续从recvqueue中获取选票，如果获取到的选票比较新，则把该选票重新放入recvqueue中，退出当前while，进入外层while
+                            // 符合过半机制之后，继续从recvqueue中获取选票，
                             while ((n = recvqueue.poll(finalizeWait, TimeUnit.MILLISECONDS)) != null) {
                                 if (totalOrderPredicate(n.leader, n.zxid, n.peerEpoch, proposedLeader, proposedZxid, proposedEpoch)) {
+                                    /**
+                                     * 如果获取到的选票比当前的票厉害，则把该选票重新放入recvqueue中，退出当前while，进入外层while
+                                     * 这样做的目的：就是让本机的选票一定是最厉害节点的信息，并且“过半”的票，一定都是投的最厉害的节点
+                                     * LinkedBlockingQueue  ->
+                                     * offer()方法在添加元素时，如果发现队列已满无法添加的话，会直接返回false
+                                     * put()方法，若向队尾添加元素的时候发现队列已经满了会发生阻塞一直等待空间，以加入元素
+                                     * add()方法在添加元素的时候，若超出了度列的长度会直接抛出异常
+                                     */
                                     recvqueue.put(n);
                                     break;
                                 }
@@ -1117,7 +1126,12 @@ public class FastLeaderElection implements Election {
                              * This predicate is true once we don't read any new
                              * relevant message from the reception queue
                              */
-                            // 如果没有获取到选票了
+                            /**
+                             * 经过上面那个 小while 循环，达到了三个目的
+                             *   1、投票队列里已经没有新的 投票信息了
+                             *   2、本机的选票一定是最厉害节点的信息
+                             *   3、“过半”的票，一定都是投的最厉害的节点
+                             */
                             if (n == null) {
                                 // 终极代码 ！！ -> 更新服务器的 角色 ，leader  follower  observer
                                 setPeerState(proposedLeader, voteSet);

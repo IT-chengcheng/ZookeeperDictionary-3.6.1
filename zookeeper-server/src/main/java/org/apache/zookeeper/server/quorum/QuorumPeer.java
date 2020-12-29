@@ -610,6 +610,7 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
 
     /**
      * This is who I think the leader currently is.
+     * 经过投票选举后，最终选出了leader，并且将最厉害的票，也就是leader节点的信息，存到这个属性
      */
     private volatile Vote currentVote;
 
