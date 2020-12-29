@@ -181,6 +181,8 @@ public class QuorumCnxManager {
 
     /*
      * Listener thread
+     *
+     * 负责建立socket连接，进行领导选举
      */
     public final Listener listener;
 
@@ -628,6 +630,7 @@ public class QuorumCnxManager {
             } else {
                 try {
                     InitialMessage init = InitialMessage.parse(protocolVersion, din);
+                    // 发起连接的 zk的 myid
                     sid = init.sid;
                     if (!init.electionAddr.isEmpty()) {
                         electionAddr = new MultipleAddresses(init.electionAddr,
@@ -658,7 +661,7 @@ public class QuorumCnxManager {
         // do authenticating learner
         authServer.authenticate(sock, din);
         //If wins the challenge, then close the new connection.
-        // 现在接收到了一个socket连接，如果发起socket连接的sid比我自己的小，则把socket挂掉，不能对方来连我，只能大的sid连小的sid
+        // 现在接收到了一个socket连接，如果发起socket连接的sid比我自己的小，则把socket关掉，不能让小的sid来连我，只能大的sid连小的sid
         if (sid < self.getId()) {
             /*
              * This replica might still believe that the connection to sid is
@@ -1002,6 +1005,7 @@ public class QuorumCnxManager {
                         .collect(Collectors.toList());
 
                 ExecutorService executor = Executors.newFixedThreadPool(addresses.size());
+                // 开启监听 领导者选举的  socket连接 线程，仅仅是连接
                 listenerHandlers.forEach(executor::submit);
 
                 try {
