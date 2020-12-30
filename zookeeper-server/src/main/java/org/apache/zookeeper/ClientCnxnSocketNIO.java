@@ -109,8 +109,10 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     // 连接已经初始化好了
                     initialized = true;
                 } else {
-                    // 从incomingBuffer中读取响应
-                    // 增删查改
+                    /**
+                     *  从incomingBuffer中读取响应
+                     *  增删查改,注册watcher，或者触发watcher
+                     */
                     sendThread.readResponse(incomingBuffer);
                     lenBuffer.clear();
                     incomingBuffer = lenBuffer;
@@ -153,8 +155,12 @@ public class ClientCnxnSocketNIO extends ClientCnxnSocket {
                     // packet中的数据都发送完了，就移除
                     outgoingQueue.removeFirstOccurrence(p);
 
-                    // 如果不是ping或auth请求，则把packet添加到pendingQueue中
-                    // 为什么还要把packet添加到pendingQueue中，因为需要等待结果
+                    /**
+                     *  如果不是ping或auth请求，则把packet添加到pendingQueue中
+                     * 为什么还要把packet添加到pendingQueue中，因为需要等待结果
+                     *  等服务端给客户端响应成功后，客户端直接从pendingQueue取出刚才给服务端发的消息
+                     *  比如，等待服务端响应成功后，从pendingQueue取出packet，packet里有watcher，再将watcher注册到内存里，以备后续调用
+                     */
                     if (p.requestHeader != null
                         && p.requestHeader.getType() != OpCode.ping
                         && p.requestHeader.getType() != OpCode.auth) {

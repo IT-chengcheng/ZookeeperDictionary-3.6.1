@@ -613,9 +613,11 @@ public class Leader extends LearnerMaster {
 
             // Start thread that waits for connection requests from
             // new followers.
-            // 单独开启一个线程去接收learner发过来的socket连接，
-            // 只要leader不shutdown，它就不会停止，因为要等待新的learner节点连接
-            // 这里会创建LearnerHandler线程
+            /**
+             * 单独开启一个线程去接收learner发过来的socket连接，
+             * 只要leader不shutdown，它就不会停止，因为要等待新的learner节点连接
+             * 这里会创建LearnerHandler线程
+             */
             cnxAcceptor = new LearnerCnxAcceptor();
             cnxAcceptor.start();
 

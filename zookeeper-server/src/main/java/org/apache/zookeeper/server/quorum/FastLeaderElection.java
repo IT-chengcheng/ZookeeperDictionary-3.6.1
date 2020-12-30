@@ -125,7 +125,7 @@ public class FastLeaderElection implements Election {
          */ long zxid;  // zxid
 
         /*
-         * Epoch  选举轮次，是第几轮选举   可不是第几届！！
+         * 投票周期(第几届投票)。  从0开始递增
          * 对应 AtomicLong logicalclock
          */ long electionEpoch;
 
@@ -140,7 +140,7 @@ public class FastLeaderElection implements Election {
         QuorumVerifier qv;
         /*
          * epoch of the proposed leader
-         * 选举的届数  表示第几届选举 对应 proposedEpoch  是截取的zxid的前32位  ZxidUtils.getEpochFromZxid(rzxid)
+         *当前leader的任期  对应 proposedEpoch  是截取的zxid的前32位  ZxidUtils.getEpochFromZxid(rzxid)
          */ long peerEpoch;
 
     }
@@ -165,11 +165,11 @@ public class FastLeaderElection implements Election {
 
             this.leader = leader;
             this.zxid = zxid;
-            // 选举的轮次 表示第几轮，  对应  AtomicLong logicalclock
+            // 投票周期(第几届投票)  对应  AtomicLong logicalclock
             this.electionEpoch = electionEpoch;
             this.state = state;
             this.sid = sid;
-            // 选举的届数，表示第几届选举 对应proposedEpoch
+            // 当前leader的任期 对应proposedEpoch
             this.peerEpoch = peerEpoch;
             this.configData = configData;
         }
@@ -718,12 +718,12 @@ public class FastLeaderElection implements Election {
             QuorumVerifier qv = self.getQuorumVerifier();
             ToSend notmsg = new ToSend(
                 ToSend.mType.notification, // 投票
-                proposedLeader,   // 本张选票当前投给了哪个节点，配置文件的myid，第一次是自己的myid，后续会变
-                proposedZxid,     // 本张选票当前投给了的那个节点上的最大的zxid ， 就是事务ID
-                logicalclock.get(),  // 本张选票的逻辑时钟
+                proposedLeader,   // 本张选票当前投给节点的配置文件的myid，第一次是自己的myid，后续会变
+                proposedZxid,     // 本张选票当前投给节点的最大的zxid,就是事务ID
+                logicalclock.get(),  // 本张选票的逻辑时钟,(第几届投票)
                 QuorumPeer.ServerState.LOOKING,  // 本节点当前的状态
                 sid,  // 把本张选票发给sid,sid就是其他服务器的 myid
-                proposedEpoch,  // 本张选票当前投给了的那个节点上的epoch
+                proposedEpoch,  // 本张选票投的是哪一届 领导人
                 qv.toString().getBytes());
 
             LOG.debug(

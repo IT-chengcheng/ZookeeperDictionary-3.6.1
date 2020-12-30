@@ -279,12 +279,18 @@ public class ZooKeeper implements AutoCloseable {
      */
     static class ZKWatchManager implements ClientWatchManager {
 
-        // 以下三个是一次性的 path :
-        // getData \ getChildren \ exist
+        /**
+         * 以下三个是一次性的 path :  非 zk.add()方法添加的watch，通过 getData（）  getChildren（）  exist（）添加
+         * 分别对应注册类 DataWatchRegistration extends WatchRegistration
+         *                class ExistsWatchRegistration extends WatchRegistration
+         *                ChildWatchRegistration extends WatchRegistration
+         */
         private final Map<String, Set<Watcher>> dataWatches = new HashMap<String, Set<Watcher>>();
         private final Map<String, Set<Watcher>> existWatches = new HashMap<String, Set<Watcher>>();
         private final Map<String, Set<Watcher>> childWatches = new HashMap<String, Set<Watcher>>();
-        // 以下两个是一直有效的
+
+        // 以下两个是一直有效的   通过zk.add()方法添加的，
+        // 对应注册类 class AddWatchRegistration extends WatchRegistration
         private final Map<String, Set<Watcher>> persistentWatches = new HashMap<String, Set<Watcher>>();
         private final Map<String, Set<Watcher>> persistentRecursiveWatches = new HashMap<String, Set<Watcher>>();
         private boolean disableAutoWatchReset;
@@ -293,7 +299,11 @@ public class ZooKeeper implements AutoCloseable {
             this.disableAutoWatchReset = disableAutoWatchReset;
         }
 
-        // 这个watcher就是 新建zookeeper客户端时，zookeeper的构造方法传入的watcher
+        /**
+         * 这个watcher是新建zookeeper客户端时，zookeeper的构造方法传入的watcher，为什么每次新建zookeeper客户端都要传一个watcher？
+         * 因为构造方法中会去连接zk服务端，不知道啥时候才能连接完成，或者说不知道连接的结果，这个watcher就是作为回调用，告诉你
+         * 连接zk服务端的结果
+         */
         protected volatile Watcher defaultWatcher;
 
         private void addTo(Set<Watcher> from, Set<Watcher> to) {
@@ -647,7 +657,7 @@ public class ZooKeeper implements AutoCloseable {
                 addTo(persistentWatches.get(clientPath), result);
             }
             synchronized (persistentRecursiveWatches) {
-                // /luban123/12/123
+                // /tom123/12/123
                 for (String path : PathParentIterator.forAll(clientPath).asIterable()) {
                     addTo(persistentRecursiveWatches.get(path), result);
                 }
@@ -657,12 +667,13 @@ public class ZooKeeper implements AutoCloseable {
 
     /**
      * Register a watcher for a particular path.
+     *
+     * 有 4 大实现类
      */
     public abstract class WatchRegistration {
-        // Watch注册对象，需要注册的path以及Watcher
 
-        private Watcher watcher;
-        private String clientPath;
+        private Watcher watcher;// 监听路径的回调
+        private String clientPath; // 需要监听的路径
         public WatchRegistration(Watcher watcher, String clientPath) {
             this.watcher = watcher;
             this.clientPath = clientPath;
@@ -709,6 +720,7 @@ public class ZooKeeper implements AutoCloseable {
     /** Handle the special case of exists watches - they add a watcher
      * even in the case where NONODE result code is returned.
      */
+    // 对应 ZKWatchManager ->  Map<String, Set<Watcher>> existWatches    ZKWatchManager
     class ExistsWatchRegistration extends WatchRegistration {
 
         public ExistsWatchRegistration(Watcher watcher, String clientPath) {
@@ -729,7 +741,7 @@ public class ZooKeeper implements AutoCloseable {
         }
 
     }
-
+    // 对应 ZKWatchManager -> Map<String, Set<Watcher>> dataWatches
     class DataWatchRegistration extends WatchRegistration {
 
         public DataWatchRegistration(Watcher watcher, String clientPath) {
@@ -745,6 +757,7 @@ public class ZooKeeper implements AutoCloseable {
 
     }
 
+    // 对应 ZKWatchManager -> Map<String, Set<Watcher>> childWatches
     class ChildWatchRegistration extends WatchRegistration {
 
         public ChildWatchRegistration(Watcher watcher, String clientPath) {
@@ -757,7 +770,7 @@ public class ZooKeeper implements AutoCloseable {
         }
 
     }
-
+    // 对应 ZKWatchManager -> Map<String, Set<Watcher>> persistentWatches
     class AddWatchRegistration extends WatchRegistration {
         private final AddWatchMode mode;
 
@@ -3246,7 +3259,7 @@ public class ZooKeeper implements AutoCloseable {
         PathUtils.validatePath(basePath);
         String serverPath = prependChroot(basePath);
 
-        // 添加Watch的请求
+        // 创建新的请求  类型是 ZooDefs.OpCode.addWatch
         RequestHeader h = new RequestHeader();
         h.setType(ZooDefs.OpCode.addWatch);
         AddWatchRequest request = new AddWatchRequest(serverPath, mode.getMode());

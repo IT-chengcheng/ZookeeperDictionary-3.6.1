@@ -1,6 +1,7 @@
 package com.client.distributed_lock;
 
 import org.apache.zookeeper.*;
+import org.apache.zookeeper.server.DataTree;
 
 import java.io.IOException;
 import java.util.Collections;

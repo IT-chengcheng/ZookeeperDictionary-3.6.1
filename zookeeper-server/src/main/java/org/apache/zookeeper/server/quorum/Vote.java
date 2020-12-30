@@ -27,9 +27,10 @@ public class Vote {
     private final long id;// myid   proposedLeader
 
     private final long zxid;
-
+ // 指的是投票周期(第几届投票)。
     private final long electionEpoch;
 
+    //指的是当前leader的任期。
     private final long peerEpoch;
 
     public Vote(long id, long zxid) {

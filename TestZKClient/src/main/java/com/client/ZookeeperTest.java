@@ -27,7 +27,7 @@ public class ZookeeperTest {
          * stat
          */
         Stat stat = new Stat();
-        zooKeeper.getData("/luban", new Watcher() {
+        zooKeeper.getData("/tom", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
 
@@ -38,24 +38,31 @@ public class ZookeeperTest {
         /**
          * Watch
          */
-        zooKeeper.addWatch("/luban", new Watcher() {
+        zooKeeper.addWatch("/tom", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println("PERSISTENT_RECURSIVE"+event);
             }
-        }, AddWatchMode.PERSISTENT_RECURSIVE);
+        }, AddWatchMode.PERSISTENT_RECURSIVE); // 递归，子节点的数据变化也会触发Watcher，而且子节点的子节点数据发生变化也会触发监听器
+
+        zooKeeper.addWatch("/tom", new Watcher() {
+            @Override
+            public void process(WatchedEvent event) {
+                System.out.println("PERSISTENT_RECURSIVE"+event);
+            }
+        }, AddWatchMode.PERSISTENT);//只监听本节点变化，包括数据变化，以及增删改查子节点
 
         System.in.read();
 
 
-        byte[] result = zooKeeper.getData("/luban123", new Watcher() {
+        byte[] result = zooKeeper.getData("/tom123", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println("213");
             }
         }, stat);
 
-       zooKeeper.exists("/luban123", new Watcher() {
+       zooKeeper.exists("/tom123", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println("213");
@@ -70,7 +77,7 @@ public class ZookeeperTest {
 
 
 
-       zooKeeper.getChildren("/luban123", new Watcher() {
+       zooKeeper.getChildren("/tom123", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println("213");
@@ -79,7 +86,7 @@ public class ZookeeperTest {
 
 
        String s = "123";
-        zooKeeper.getData("/luban123", false, new AsyncCallback.DataCallback() {
+        zooKeeper.getData("/tom123", false, new AsyncCallback.DataCallback() {
             @Override
             public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
 
@@ -87,7 +94,7 @@ public class ZookeeperTest {
             }
         }, s);
 //
-        zooKeeper.getData("/luban123", false, new AsyncCallback.DataCallback() {
+        zooKeeper.getData("/tom123", false, new AsyncCallback.DataCallback() {
             @Override
             public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
                 System.out.println(2);
@@ -103,14 +110,14 @@ public class ZookeeperTest {
          * 容器节点
           *创建成功则返回该节点的路径，注意顺序节点
          */
-       String a = zooKeeper.create("/luban123", "123".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
+       String a = zooKeeper.create("/tom123", "123".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT_SEQUENTIAL);
         System.in.read();
 
 
 //         获取某个节点的内容，并设置一个监听器
 //         stat用来承载节点的其他信息
 //
-        zooKeeper.getData("/luban123", false, new AsyncCallback.DataCallback() {
+        zooKeeper.getData("/tom123", false, new AsyncCallback.DataCallback() {
             @Override
             public void processResult(int rc, String path, Object ctx, byte[] data, Stat stat) {
                 System.out.println(2);
@@ -121,13 +128,13 @@ public class ZookeeperTest {
 
         // 修改节点的内容，这里有乐观锁,version表示本次修改, -1表示不检查版本强制更新
         // stat表示修改数据成功之后节点的状态
-      Stat stat1 = zooKeeper.setData("/luban", "xxx".getBytes(), -1);
-      zooKeeper.delete("/luban", -1);
+      Stat stat1 = zooKeeper.setData("/tom", "xxx".getBytes(), -1);
+      zooKeeper.delete("/tom", -1);
 
 
         // 判断某节点是否存在，如果存在则返回该节点的状态（并没有节点的内容）
         // 同时设置一个监听器
-        zooKeeper.exists("/luban", new Watcher() {
+        zooKeeper.exists("/tom", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println(event);
@@ -137,7 +144,7 @@ public class ZookeeperTest {
 
 
         // 获取孩子节点
-        List<String> children = zooKeeper.getChildren("/luban", new Watcher() {
+        List<String> children = zooKeeper.getChildren("/tom", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
 
@@ -151,7 +158,7 @@ public class ZookeeperTest {
          * 监听器有两种，比较特殊的是递归-PERSISTENT_RECURSIVE， 表示：子节点的数据变化也会触发Watcher，
          * 而且子节点的子节点数据发生变化也会触发监听器
          */
-        zooKeeper.addWatch("/luban123", new Watcher() {
+        zooKeeper.addWatch("/tom123", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println("PERSISTENT_RECURSIVE"+event);
@@ -160,14 +167,14 @@ public class ZookeeperTest {
 
 
         // getData(".ba", new Wath)  GetDataReqeust({"/123", Set<Servn>})   AddWathcRequest  ("123", Set<SErvncxnx>)
-//     /luban123/123123
+//     /tom123/123123
         //  /set /123
-        zooKeeper.addWatch("/luban123", new Watcher() {
+        zooKeeper.addWatch("/tom123", new Watcher() {
             @Override
             public void process(WatchedEvent event) {
                 System.out.println("PERSISTENT" + event);
             }
-        }, AddWatchMode.PERSISTENT);  ///luban123/1213/123/123
+        }, AddWatchMode.PERSISTENT);  ///tom123/1213/123/123
 //
         System.in.read();
 
@@ -186,7 +193,7 @@ public class ZookeeperTest {
         }, ctx);
 
 
-        zooKeeper.addWatch("/luban", new Watcher() {
+        zooKeeper.addWatch("/tom", new Watcher() {
             @Override
             public void process(WatchedEvent event){
                 System.out.println(event);
