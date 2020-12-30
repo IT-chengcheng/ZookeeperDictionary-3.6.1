@@ -141,7 +141,9 @@ public class ClientCnxn {
 
     private final CopyOnWriteArraySet<AuthData> authInfo = new CopyOnWriteArraySet<AuthData>();
 
-    /** 客户端发送的请求，但是请求的response还没返回
+    /** 客户端发送的请求，但是请求的response还没返回。意思是：
+     *  客户端将消息 packet发送给服务端的时候，也将packet放到pendingQueue中，客户端一直等，等到服务端响应成功后
+     *  再从pendingQueue取出刚才发给服务端的消息。为什么要这样做：比如等服务端响应成功后，取出watcher，再注册watcher
      * These are the packets that have been sent and are waiting for a response.
      */
     private final Queue<Packet> pendingQueue = new ArrayDeque<>();
@@ -760,7 +762,10 @@ public class ClientCnxn {
 
         // 在一个请求数据包处理完成后，如果需要注册Watcher就进行注册
         if (p.watchRegistration != null) {    // getData  DataWatchRegistration
-            // 这里会注册watch
+            /**
+             * 这里就开始 将程序员new 的watcher，添加到 客户端的内存里，以备后续触发调用
+             * 特别注意：触发这里的时机是：客户端发送给服务端信息，服务端响应给客户端成功后，客户端才到这里进行注册watcher
+             */
             p.watchRegistration.register(err);
         }
         // Add all the removed watch events to the event queue, so that the
@@ -799,8 +804,6 @@ public class ClientCnxn {
             // p.finished直接设置为true
             p.finished = true;
             // 顺序执行
-
-
 
 
             //队列+单线程
