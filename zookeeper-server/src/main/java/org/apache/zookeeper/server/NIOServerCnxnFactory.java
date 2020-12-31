@@ -114,13 +114,23 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
      */
     private abstract class AbstractSelectThread extends ZooKeeperThread {
 
+        /**
+         * 注意这个 Selector selector 是在这个抽象父类的构造方法中 Selector.open()，他的两个子类也就是随之拥有了selector属性
+         * AcceptThread 只有一个线程，负责注册“连接事件”
+         *             ServerSocketChannel.register(selector, SelectionKey.OP_ACCEPT)
+         *             ServerSocketChannel = ServerSocketChannel.open()
+         * SelectorThread 会根据CPU计算出多个线程，负责注册“读写事件”
+         *              SocketChannel.register(selector, SelectionKey.OP_READ)
+         *              SocketChannel = ServerSocketChannel.accept() 这个操作是发生在AcceptThread，然后将SocketChannel放到
+         *                                      SelectorThread对中，SelectorThread在run（）方法，从队列中取出来，从而注册读写事件
+         */
         protected final Selector selector;
 
         public AbstractSelectThread(String name) throws IOException {
             super(name);
             // Allows the JVM to shutdown even if this thread is still running.
             setDaemon(true);
-            // 居然是在这里，open（）的
+            // 居然是在这里，open（）的，看上面对 selector属性的注释
             this.selector = Selector.open();
         }
 
@@ -285,9 +295,11 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 if (limitTotalNumberOfCnxns()) {
                     throw new IOException("Too many connections max allowed is " + maxCnxns);
                 }
+                // 获取 客户端的 IP
                 InetAddress ia = sc.socket().getInetAddress();
+                // 这个客户端IP 对本台zkServer的连接数。   一台IP主机，可能会部署多台我们自己的服务！！
                 int cnxncount = getClientCnxnCount(ia);
-
+               // 单台IP客户端，对单台zkServer的连接数 最大限制为 60
                 if (maxClientCnxns > 0 && cnxncount >= maxClientCnxns) {
                     throw new IOException("Too many connections from " + ia + " - max is " + maxClientCnxns);
                 }
@@ -301,6 +313,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 if (!selectorIterator.hasNext()) {
                     selectorIterator = selectorThreads.iterator();
                 }
+                // selectorThreads 是根据CPU计算出来的 selector线程数，这里随机取出一个selector线程
                 SelectorThread selectorThread = selectorIterator.next();
 
                 // 把当前sc添加到selectorThread的队列中，selectorThread会处理它自己的队列中的sc，到时候会取出来注册读写事件
@@ -415,6 +428,8 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                          * 这个方法就是重新对  updateQueue 队列中的socketchanel注册感兴趣的事件
                          */
                         processInterestOpsUpdateRequests();
+
+
                     } catch (RuntimeException e) {
                         LOG.warn("Ignoring unexpected runtime exception", e);
                     } catch (Exception e) {
@@ -532,9 +547,25 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
                 SelectionKey key = null;
                 try {
                     key = accepted.register(selector, SelectionKey.OP_READ);
-                    // 一个sc对应一个NIOServerCnxn,socket连接的上下文，这个类也很重要
+                    /**
+                     *  一个SocketChannel对应一个NIOServerCnxn extends ServerCnxn
+                     *  也就是说 zkClient与zkServer每建立一个连接，zkServer都会建立一个NIOServerCnxn对象
+                     *           一个NIOServerCnxn对象就代表一个 client-server连接
+                     *  NIOServerCnxn都有哪些属性？
+                     *       1、当前连接的 SocketChannel
+                     *       2、SelectionKey
+                     *       3、NIOServerCnxnFactory  SelectorThread  ZooKeeperServer
+                     */
                     NIOServerCnxn cnxn = createConnection(accepted, key, this);
+
+                    // 在将这个  NIOServerCnxn 作为 SelectionKey附加对象
                     key.attach(cnxn);
+
+                    /**
+                     * 保存连接对象
+                     *    Set<ServerCnxn> cnxns
+                     *    ConcurrentHashMap<InetAddress, Set<NIOServerCnxn>> ipMap
+                     */
                     addCnxn(cnxn);
                 } catch (IOException e) {
                     // register, createConnection
@@ -681,6 +712,16 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     }
 
     // ipMap is used to limit connections per IP
+    /** 看上面的英文
+     * 一般情况下 一台客户端IP 与 服务端 建立一个连接,但是会有一个客户端与一个zkServer建立多个连接的情况，比如：
+     * 一台客户端机器部署了 多个自己服务的节点。 那么这个客户端的IP 就与 一台zkServer建立了多个连接
+     * 这里就是做个限制，初始化限制是2，默认的最大限制是60，这个60，指的是 一台客户端IP 最多与 一台zkServer建立60个连接
+     * 每一个客户端与服务端的每一个连接  都是一个 NIOServerCnxn 对象。
+     * 这就是为什么 出现了 一个IP 对 一个Set的情况。官方解释如下
+     * 单个客户端与单台服务器之间的连接数的限制，是ip级别的，默认是60，如果设置为0，那么表明不作任何限制。
+     * 请注意这个限制的使用范围，仅仅是单台客户端机器与单台ZK服务器之间的连接数限制，
+     * 不是针对指定客户端IP，也不是ZK集群的连接数限制，也不是单台ZK对所有客户端的连接数限制。
+     */
     private final ConcurrentHashMap<InetAddress, Set<NIOServerCnxn>> ipMap = new ConcurrentHashMap<InetAddress, Set<NIOServerCnxn>>();
 
     protected int maxClientCnxns = 60;
@@ -934,14 +975,25 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     }
 
     private void addCnxn(NIOServerCnxn cnxn) throws IOException {
+        // 获得连接的远程服务器的IP地址
         InetAddress addr = cnxn.getSocketAddress();
         if (addr == null) {
             throw new IOException("Socket of " + cnxn + " has been closed");
         }
+        /**
+         * 一般情况下 一台客户端IP 与 服务端 建立一个连接,但是会有一个客户端与一个zkServer建立多个连接的情况，比如：
+         * 一台客户端机器部署了 多个自己服务的节点。 那么这个客户端的IP 就与 一台zkServer建立了多个连接
+         * 这里就是做个限制，初始化限制是2，默认的最大限制是60，这个60，指的是 一台客户端IP 最多与 一台zkServer建立60个连接
+         * 每一个客户端与服务端的每一个连接  都是一个 NIOServerCnxn 对象。
+         * 这就是为什么 出现了 一个IP 对 一个Set的情况。官方解释如下
+         * 单个客户端与单台服务器之间的连接数的限制，是ip级别的，默认是60，如果设置为0，那么表明不作任何限制。
+         * 请注意这个限制的使用范围，仅仅是单台客户端机器与单台ZK服务器之间的连接数限制，
+         * 不是针对指定客户端IP，也不是ZK集群的连接数限制，也不是单台ZK对所有客户端的连接数限制。
+         */
         Set<NIOServerCnxn> set = ipMap.get(addr);
         if (set == null) {
             // in general we will see 1 connection from each
-            // host, setting the initial cap to 2 allows us
+            // host, setting the initial cap（初始化上线，cap帽子，上线） to 2 allows us
             // to minimize mem usage in the common case
             // of 1 entry --  we need to set the initial cap
             // to 2 to avoid rehash when the first entry is added
@@ -965,6 +1017,7 @@ public class NIOServerCnxnFactory extends ServerCnxnFactory {
     }
 
     private int getClientCnxnCount(InetAddress cl) {
+        // 具体看 ipMap的解释
         Set<NIOServerCnxn> s = ipMap.get(cl);
         if (s == null) {
             return 0;

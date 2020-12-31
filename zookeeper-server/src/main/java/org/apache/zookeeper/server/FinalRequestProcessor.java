@@ -106,8 +106,12 @@ public class FinalRequestProcessor implements RequestProcessor {
         this.requestPathMetricsCollector = zks.getRequestPathMetricsCollector();
     }
 
-    // 注意这个处理器可不是个线程，这个方法是在 SyncRequestProcessor中调用的，这方法就是这个类的核心方法
-    // 前面两个处理器的核心都在线程run（）方法里。
+    /**
+     * 注意这个处理器可不是个线程，这个方法是在 SyncRequestProcessor中调用的，这方法就是这个类的核心方法
+     * 前面两个处理器的核心都在线程run（）方法里。
+     * 1、处理客户端的请求
+     * 2、处理完后，响应给客户端结果
+     */
     public void processRequest(Request request) {
 
         LOG.debug("Processing request:: {}", request);
@@ -121,13 +125,18 @@ public class FinalRequestProcessor implements RequestProcessor {
             ZooTrace.logRequest(LOG, traceMask, 'E', request, "");
         }
 
-        // 1. 会更新ZKDatabase
-        // 2. 触发watcher
-        // 3. 如果是集群模式就把request添加到committedLog队列中
-        // 4. zookeeper 将节点 存储 到内存数据库,确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
+
+        /** 一、处理客户端的请求
+         *     1. 会更新ZKDatabase
+         *    2. 触发watcher
+         *    3. 如果是集群模式就把request添加到committedLog队列中
+         *    4. zookeeper 将节点 存储 到内存数据库,确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
+         */
         ProcessTxnResult rc = zks.processTxn(request);
         /**
-         * 下面方法还很长，一定要仔细看
+         *  二、下面就是响应客户端的命令
+         *   根据各种客户端的请求类型，生成响应数据，放到队列  outgoingBuffers  中。
+         *   ScheduledWorkRequest run() -> WorkRequest.doWork() -> doIO(key) -> handleWrite（）读出来，然后socket.send()
          */
 
         // ZOOKEEPER-558:
@@ -163,6 +172,9 @@ public class FinalRequestProcessor implements RequestProcessor {
         if (request.cnxn == null) {
             return;
         }
+
+        // 每个 zkclient - zkServer的连接 都会建立一个 NIOServerCnxn对象
+        // 所以一个 cnxn 就代表一个 client-server的连接
         ServerCnxn cnxn = request.cnxn;
 
         // zkDataBase中最近的一个zxid
@@ -422,6 +434,9 @@ public class FinalRequestProcessor implements RequestProcessor {
                 AddWatchRequest addWatcherRequest = new AddWatchRequest();
                 ByteBufferInputStream.byteBuffer2Record(request.request,
                         addWatcherRequest);
+                // cnxn 是NIOServerCnxn ，每一个cnxn代表一个 client-server的连接
+                // NIOServerCnxn extend ServerCnxn implements Watcher
+                // 所以NIOServerCnxn 是个Watcher
                 zks.getZKDatabase().addWatch(addWatcherRequest.getPath(), cnxn, addWatcherRequest.getMode());
                 rsp = new ErrorResponse(0);
                 break;

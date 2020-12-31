@@ -137,7 +137,12 @@ public interface Watcher {
          */
         @InterfaceAudience.Public
         enum EventType {
+            /**
+             * 表示来自一个 服务端 对 客户端的 普通响应。比如说是创建节点成功了，或者修改节点成功了
+             * 会触发所有与watch： defaultWatcher、dataWatches、existWatches、childWatches、persistentWatches、persistentRecursiveWatches
+             */
             None(-1),
+
             NodeCreated(1),
             NodeDeleted(2),
             NodeDataChanged(3),

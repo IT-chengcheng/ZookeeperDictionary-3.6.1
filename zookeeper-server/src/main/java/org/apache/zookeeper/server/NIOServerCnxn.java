@@ -782,13 +782,16 @@ public class NIOServerCnxn extends ServerCnxn {
         if (!sock.isOpen()) {
             return null;
         }
+        // getInetAddress()：       获得连接的远程服务器的IP地址
+        // getRemoteSocketAddress():获取连接的远程服务器地址
         return (InetSocketAddress) sock.socket().getRemoteSocketAddress();
     }
 
     public InetAddress getSocketAddress() {
         if (!sock.isOpen()) {
             return null;
-        }
+        }// getInetAddress()：      获得连接的远程服务器的IP地址
+        // getRemoteSocketAddress():获取连接的远程服务器地址
         return sock.socket().getInetAddress();
     }
 

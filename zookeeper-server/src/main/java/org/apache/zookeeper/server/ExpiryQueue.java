@@ -40,7 +40,8 @@ import org.apache.zookeeper.common.Time;
 public class ExpiryQueue<E> {
 
     //记录了每一个对象的归一化后的超时时间点，key是被管理的对象，value是超时时间点
-    //  key的可能是 SessionImpl（大多数情况就是这个类）  ，也可能是 NIOServerCnxn
+    //  key的可能是 SessionImpl（session会话管理时，此时ExpiryQueue为SessionTrackerImpl的属性）
+    // 也可能是 NIOServerCnxn（在zkClient与zkServer建立连接时，此时ExpiryQueue为NioServerCnxnFatory的属性）
     private final ConcurrentHashMap<E, Long> elemMap = new ConcurrentHashMap<E, Long>();
     /**
      * The maximum number of buckets is equal to max timeout/expirationInterval,

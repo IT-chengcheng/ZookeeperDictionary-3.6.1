@@ -518,9 +518,10 @@ public class ClientCnxn {
             final Set<Watcher> watchers;
             if (materializedWatchers == null) {
                 // materialize the watchers based on the event
-                // watcher是ZKWatchManager， 客户端Watch管理器
-                // 传入事件的状态、事件的类型、事件所对应的path
-                // 得到的watchers表示当前触发的event应该要触发watcher列表
+                /**
+                 *  watcher是ZKWatchManager
+                 * 根据事件的type（None NodeCreated等等）、事件所对应的path 得到应该要触发watcher集合Set
+                 */
                 watchers = watcher.materialize(event.getState(), event.getType(), event.getPath());
             } else {
                 watchers = new HashSet<Watcher>();
@@ -531,6 +532,7 @@ public class ClientCnxn {
             // WatcherSetEventPair表示 {监听器集合：Event}的一个对应关系，表示现在有一个event发送出来了，哪些监听器应该要被触发
             WatcherSetEventPair pair = new WatcherSetEventPair(watchers, event);
             // queue the pair (watch set & event) for later processing
+            // 加入队列 ，EventThread 线程从run()方法取出，执行
             waitingEvents.add(pair);
         }
 
@@ -559,6 +561,7 @@ public class ClientCnxn {
 
         @Override
         @SuppressFBWarnings("JLM_JSR166_UTILCONCURRENT_MONITORENTER")
+        // EventThread
         public void run() {
             try {
                 isRunning = true;
@@ -568,7 +571,7 @@ public class ClientCnxn {
                     if (event == eventOfDeath) {
                         wasKilled = true;
                     } else {
-                        // 处理事件
+                        // 处理 watcher 事件
                         processEvent(event);
                     }
                     if (wasKilled) {
@@ -587,6 +590,7 @@ public class ClientCnxn {
             LOG.info("EventThread shut down for session: 0x{}", Long.toHexString(getSessionId()));
         }
 
+        // 开始执行 客户端端的 监听方法， 也就是watcher
         private void processEvent(Object event) {
             try {
                 // 如果

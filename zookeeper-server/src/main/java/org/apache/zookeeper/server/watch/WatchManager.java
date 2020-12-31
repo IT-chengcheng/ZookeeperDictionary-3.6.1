@@ -43,9 +43,20 @@ public class WatchManager implements IWatchManager {
 
     private static final Logger LOG = LoggerFactory.getLogger(WatchManager.class);
 
-    // path: Set<ServerCnxn>  一个path会有多个watch，所有 value是 Set，  这个Watcher实现类是 ServerCnxn
+    /**
+     *  NIOServerCnxn extend ServerCnxn implements Watcher
+     *  也就是说 NIOServerCnxn 就是一个Watcher 。每一个NIOServerCnxn（Watcher）代表一个 client-server的连接。
+     *
+     *  OrderClient1，OrderClient2，StockClient1，StockClient2，OtherClient 等连接了同一台 zkServer，
+     *  并且同时监听了path：/config/tom/book ,所以 /config/tom/book 就对应一个Set，set里面放的就是
+     *  所有客户端的连接对象 NIOServerCnxn
+     */
     private final Map<String, Set<Watcher>> watchTable = new HashMap<>();
-
+    /**
+     *  OrderClient1 与 zkSever建立一个连接，是个 NIOServerCnxn extend ServerCnxn implements Watcher
+     *  OrderClient1  对多个路径添加了监听 /config/tom/book，/cluster/jeyyt/car，/person/eat
+     *  那么这个 NIOServerCnxn 就对应一个 Set，set里面方法就是所有的需要监听的path
+     */
     private final Map<Watcher, Set<String>> watch2Paths = new HashMap<>();
 
     private final WatcherModeManager watcherModeManager = new WatcherModeManager();
@@ -75,8 +86,13 @@ public class WatchManager implements IWatchManager {
             return false;
         }
 
-        // 这里是个Set, 一个path会对应一个Set<Watcher>，也就是Set<ServerCnxn>
-        // watchTable表示，现在服务端上，当前path上有多少个客户端绑定了dataWatcher或者childWatches（根据属性区分的）
+        /**
+         * Datatree 类有两个 WatchManager 的实例对象
+         *       IWatchManager  dataWatcher
+         *       IWatchManager  childWatches
+         * path是zk节点全路径，Watcher是 NIOServerCnxn
+         * watchTable 见上面属性解析
+         */
         Set<Watcher> list = watchTable.get(path);
 
         if (list == null) {
@@ -88,8 +104,10 @@ public class WatchManager implements IWatchManager {
         }
         list.add(watcher);
 
-        // 当前服务器上，每个客户端对多少个path绑定了dataWatcher或者childWatches（根据属性区分的）
-        // ServerCnxn: Set<path>
+        /**
+         * path是zk节点全路径，Watcher是 NIOServerCnxn
+         * 见上面属性解析
+         */
         Set<String> paths = watch2Paths.get(watcher);
         if (paths == null) {
             // cnxns typically have many watches, so use default cap here
@@ -140,7 +158,7 @@ public class WatchManager implements IWatchManager {
             // 遍历路径
             for (String localPath : pathParentIterator.asIterable()) {
                 // 当前path对应的节点上有几个watcher(可能存在多个客户端，而且每个客户端对同一节点)
-                // Map<String, Set<Watcher>> watchTable  这就是存储watch的数据结构，在哪存的？Watcher实现类是哪个？
+                // Map<String, Set<Watcher>> watchTable
                 Set<Watcher> thisWatchers = watchTable.get(localPath);
 
                 if (thisWatchers == null || thisWatchers.isEmpty()) {

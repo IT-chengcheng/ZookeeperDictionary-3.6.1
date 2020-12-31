@@ -102,9 +102,9 @@ public class DataTree {
      * This map provides a fast lookup to the datanodes. The tree is the
      * source of truth and is where all the locking occurs
      */
-    private final NodeHashMap nodes;// 实现类 NodeHashMapImpl
+    private final NodeHashMap nodes;// 实现类 NodeHashMapImpl，真正存储znode
 
-    // 下面两个只是属性名字不同而已，都是WatchManager实例对象
+    // 下面两个只是属性名字不同而已，都是WatchManager实例对象，存储 watcher
     private IWatchManager dataWatches; // 实现类 WatchManager
 
     private IWatchManager childWatches; // 实现类 WatchManager
@@ -910,6 +910,7 @@ public class DataTree {
 
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, TxnDigest digest) {
         // 将节点存储到 内存数据库  ，确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
+        // 触发watcher
         ProcessTxnResult result = processTxn(header, txn);
         compareDigest(header, txn, digest);
         return result;
@@ -920,6 +921,7 @@ public class DataTree {
     }
 
     // “把事物作用到内存数据库”，create  delete等， 入参 Record txn  实现类是CreateTxn 里面放的就是节点path+value
+    // 触发watcher
     public ProcessTxnResult processTxn(TxnHeader header, Record txn, boolean isSubTxn) {
         ProcessTxnResult rc = new ProcessTxnResult();
 

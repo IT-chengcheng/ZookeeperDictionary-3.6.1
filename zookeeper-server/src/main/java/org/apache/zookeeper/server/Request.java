@@ -78,6 +78,7 @@ public class Request {
 
     public final ByteBuffer request;
 
+    // NIOServerCnxn 代表 一个 zkClient 到 zkServer的连接
     public final ServerCnxn cnxn;
 
     private TxnHeader hdr;

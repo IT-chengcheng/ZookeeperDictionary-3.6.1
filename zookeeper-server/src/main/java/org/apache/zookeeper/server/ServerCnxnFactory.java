@@ -204,6 +204,7 @@ public abstract class ServerCnxnFactory {
 
     // Connection set is relied on heavily by four letter commands
     // Construct a ConcurrentHashSet using a ConcurrentHashMap
+    // 每一个客户端与服务端的都连接 都是一个 NIOServerCnxn 对象，将这些连接存起来
     protected final Set<ServerCnxn> cnxns = Collections.newSetFromMap(new ConcurrentHashMap<ServerCnxn, Boolean>());
     public void unregisterConnection(ServerCnxn serverCnxn) {
         ConnectionBean jmxConnectionBean = connectionBeans.remove(serverCnxn);

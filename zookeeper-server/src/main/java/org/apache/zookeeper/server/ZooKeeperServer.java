@@ -1889,7 +1889,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         synchronized (outstandingChanges) {
             /**
              * 根据txn去更新ZKDatabase，也就是存储到 内存数据库，确切的说是“把事物作用到内存数据库”，因为不只是create，还有 delete等
-             * 并且会触发watch
+             *  触发watch
              */
             ProcessTxnResult rc = processTxnInDB(hdr, request.getTxn(), request.getTxnDigest());
 
