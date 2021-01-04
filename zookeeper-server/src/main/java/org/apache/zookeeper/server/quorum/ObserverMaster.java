@@ -429,7 +429,7 @@ public class ObserverMaster extends LearnerMaster implements Runnable {
             return;
         }
         listenerRunning = true;
-        int backlog = 10; // dog science
+        int backlog = 10; // dog science。
         InetAddress address = self.getQuorumAddress().getReachableOrOne().getAddress();
         if (self.shouldUsePortUnification() || self.isSslQuorum()) {
             boolean allowInsecureConnection = self.shouldUsePortUnification();

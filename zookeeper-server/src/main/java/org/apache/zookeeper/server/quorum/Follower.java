@@ -84,7 +84,7 @@ public class Follower extends Learner {
             self.setZabState(QuorumPeer.ZabState.DISCOVERY);
             QuorumServer leaderServer = findLeader();
             try {
-                // Follower节点向Leader节点建立socket连接
+                // Follower节点向Leader节点建立socket连接。
                 connectToLeader(leaderServer.addr, leaderServer.hostname);
 
                 connectionTime = System.currentTimeMillis();
@@ -117,7 +117,10 @@ public class Follower extends Learner {
                     self.setLeaderAddressAndId(leaderServer.addr, leaderServer.getId());
                     self.setZabState(QuorumPeer.ZabState.SYNCHRONIZATION);
 
-                    // 与leader同步数据
+                    /**
+                     * 1、将leader的数据 同步到自己
+                     * 2、启动Follower或Observer  ：各种 ReqeustProcessor
+                     */
                     syncWithLeader(newEpochZxid);
 
 

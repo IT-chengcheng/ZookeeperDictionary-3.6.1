@@ -264,7 +264,7 @@ public class Learner {
      * Retries until either initLimit time has elapsed or 5 tries have happened.
      * @param multiAddr - the address of the Peer to connect to.
      * @throws IOException - if the socket connection fails on the 5th attempt
-     * if there is an authentication failure while connecting to leader
+     * if there is an authentication failure while connecting to leader。
      */
     protected void connectToLeader(MultipleAddresses multiAddr, String hostname) throws IOException {
 
@@ -515,7 +515,7 @@ public class Learner {
 
     /**
      * Finally, synchronize our history with the Leader (if Follower)
-     * or the LearnerMaster (if Observer).
+     * or the LearnerMaster (if Observer).。
      * @param newLeaderZxid
      * @throws IOException
      * @throws InterruptedException
@@ -745,8 +745,10 @@ public class Learner {
 
         sock.setSoTimeout(self.tickTime * self.syncLimit);
         self.setSyncMode(QuorumPeer.SyncMode.NONE);
-        // 启动Follower或Observer
-        // ReqeustProcessor
+        /**
+         * 将leader的数据 同步到自己 结束后：启动Follower或Observer
+         * 各种 ReqeustProcessor
+         */
         zk.startup();
         /*
          * Update the election vote here to ensure that all members of the
