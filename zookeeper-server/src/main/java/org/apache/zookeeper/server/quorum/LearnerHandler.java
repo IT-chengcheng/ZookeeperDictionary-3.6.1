@@ -58,7 +58,17 @@ import org.slf4j.LoggerFactory;
  * There will be an instance of this class created by the Leader for each
  * learner. All communication with a learner is handled by this
  * class.
+ *
+ * zk-leader 与 每个 zk-follow的连接 都会创建一个 LearnerHandler线程
+ *
+ * 每个线程负责处理  zk-leader 与 每个 zk-follow的 交互信息
+ * 比如：zk-follow发给  zk-leader 的
+ * 1、ping 请求
+ * 2、follow转发给leader的 请求， 写请求等
+ * 3、follow发给 leader 的两阶段提交的 ACK请求
+ *
  */
+
 public class LearnerHandler extends ZooKeeperThread {
 
     private static final Logger LOG = LoggerFactory.getLogger(LearnerHandler.class);
@@ -452,6 +462,9 @@ public class LearnerHandler extends ZooKeeperThread {
     /**
      * This thread will receive packets from the peer and process them and
      * also listen to new connections from new peers.
+     *
+     *  1、leader 同步数据给 learner（follow+observer）
+     *  2、两阶段提交，接收并处理 follow发给leader的消息
      */
     @Override
     public void run() {
@@ -568,18 +581,22 @@ public class LearnerHandler extends ZooKeeperThread {
                 ByteBuffer bbepoch = ByteBuffer.wrap(ackEpochPacket.getData());
                 ss = new StateSummary(bbepoch.getInt(), ackEpochPacket.getZxid());
 
-                // 当前learner线程已经接受到了对应learner发过来的ACKEPOCH请求，等待其他learner
+                /**
+                 * 当前learner线程已经接受到了对应learner发过来的ACKEPOCH请求，等待其他learner，并进行过半机制确认
+                  */
                 learnerMaster.waitForEpochAck(this.getSid(), ss);
             }
 
             peerLastZxid = ss.getLastZxid();
 
-            // 当leader节点和follower节点都协商好epoch后(已经确认好epoch了)，就会执行下面的流程（同步数据）
+
 
             // Take any necessary action if we need to send TRUNC or DIFF
             // startForwarding() will be called in all cases
-
-            // 同步数据 peerLastZxid表示Follower节点中目前最近的zxid
+            /**
+             * 当leader节点和follower节点都协商好epoch后(已经确认好epoch了)，就会执行下面的流程（同步数据）
+             * peerLastZxid表示Follower节点中目前最近的zxid
+             */
             boolean needSnap = syncFollower(peerLastZxid, learnerMaster);
 
             // syncs between followers and the leader are exempt from throttling because it
@@ -633,19 +650,18 @@ public class LearnerHandler extends ZooKeeperThread {
             bufferedOutput.flush();
 
             // Start thread that blast packets in the queue to learner
-            // 待同步的数据是先发在队列中的，这里就会开启一个线程去发送这些数据
-            // 并且开启这个线程后，后续流程中想要发送给Learner的数据，只要添加到queuedPackets队列中即可
-            // 这里是异步
-            // 上面先发送快照，这里再发送日志
-            startSendingPackets();  //
-
+            /**
+             * 待同步的数据是先发在队列中的，这里就会开启一个线程 异步 去发送这些数据
+             * 并且开启这个线程后，后续流程中想要发送给Learner的数据，只要添加到queuedPackets队列中即可
+             *上面先发送快照，这里再发送日志
+             */
+            startSendingPackets();
 
             /*
              * Have to wait for the first ACK, wait until
              * the learnerMaster is ready, and only then we can
              * start processing messages.
              */
-
             qp = new QuorumPacket();
             ia.readRecord(qp, "packet");
 
