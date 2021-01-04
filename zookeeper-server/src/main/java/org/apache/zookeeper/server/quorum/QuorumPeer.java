@@ -488,8 +488,8 @@ public class QuorumPeer extends ZooKeeperThread implements QuorumStats.Provider 
      */
     public enum ZabState {
         ELECTION,
-        DISCOVERY,
-        SYNCHRONIZATION,
+        DISCOVERY,   // 发现状态，或者说刚启动状态
+        SYNCHRONIZATION, // 数据同步状态
         BROADCAST
     }
 

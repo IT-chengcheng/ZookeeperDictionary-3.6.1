@@ -65,6 +65,7 @@ public class QuorumPeerConfig {
     private static final int UNSET_SERVERID = -1;
     public static final String nextDynamicConfigFileSuffix = ".dynamic.next";
 
+    //默认是true，设置成false后，代表一台机器也要按照集群模式启动，为啥要这样做：因为后期可能会添加zk节点
     private static boolean standaloneEnabled = true;
     private static boolean reconfigEnabled = false;
 

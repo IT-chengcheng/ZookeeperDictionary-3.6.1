@@ -34,7 +34,13 @@ import org.apache.zookeeper.server.quorum.QuorumPeerConfig.ConfigException;
  */
 public class QuorumMaj implements QuorumVerifier {
 
-    // 所有服务器节点
+    /**
+     * 所有服务器节点
+     * allMembers = votingMembers + observingMembers
+     * zk在没选出领导者角色之前，只有两个角色  参与者 + 非参与者
+     * 参与者 就是参与领导者选举的 节点
+     * 非参与者 就是不参加领导者选举的节点，也就是observer节点
+     */
     private Map<Long, QuorumServer> allMembers = new HashMap<Long, QuorumServer>();
     // 所有参与者节点
     private Map<Long, QuorumServer> votingMembers = new HashMap<Long, QuorumServer>();

@@ -63,9 +63,10 @@ public class LeaderZooKeeperServer extends QuorumZooKeeperServer {
 
     @Override
     protected void setupRequestProcessors() {
-        // LeaderRequestProcessor --> PrepRequestProcessor  -->
-        // ProposalRequestProcessor --> CommitProcessor -->
-        // Leader.ToBeAppliedRequestProcessor --> FinalRequestProcessor
+        /**
+         *  LeaderRequestProcessor --> PrepRequestProcessor  --> ProposalRequestProcessor --> CommitProcessor -->
+         *  Leader.ToBeAppliedRequestProcessor --> FinalRequestProcessor
+         */
 
         RequestProcessor finalProcessor = new FinalRequestProcessor(this);
         RequestProcessor toBeAppliedProcessor = new Leader.ToBeAppliedRequestProcessor(finalProcessor, getLeader());
@@ -168,6 +169,7 @@ public class LeaderZooKeeperServer extends QuorumZooKeeperServer {
 
     @Override
     public void createSessionTracker() {
+        // 这是leader的sessionTracker，构造方法内部，会创建两个 sessionTracker
         sessionTracker = new LeaderSessionTracker(
             this,
             getZKDatabase().getSessionWithTimeOuts(),

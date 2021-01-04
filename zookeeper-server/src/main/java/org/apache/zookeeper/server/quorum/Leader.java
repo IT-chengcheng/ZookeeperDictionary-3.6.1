@@ -279,7 +279,7 @@ public class Leader extends LearnerMaster {
         }
         return qv.containsQuorum(ids);
     }
-
+ // 大部分情况下只有一个地址，有时候可能会配置多个端口：leader配置多个端口（地址），供其他follow连接
     private final List<ServerSocket> serverSockets = new LinkedList<>();
 
     public Leader(QuorumPeer self, LeaderZooKeeperServer zk) throws IOException {
@@ -294,6 +294,7 @@ public class Leader extends LearnerMaster {
         }
 
         // 当前机器用来和Follower节点进行socket连接的地址
+        // 大部分情况下只有一个地址，有时候可能会配置多个端口：leader配置多个端口（地址），供其他follow连接
         addresses.stream()
           .map(address -> createServerSocket(address, self.shouldUsePortUnification(), self.isSslQuorum()))
           .filter(Optional::isPresent)
@@ -438,7 +439,7 @@ public class Leader extends LearnerMaster {
     protected final Proposal newLeaderProposal = new Proposal();
 
     // 这个线程会不断的阻塞的去接收learner发过来的socket连接，
-    // 只要leader不shutdown，它就不会停止，因为要等待新的learner节点连接
+    // 只要leader不shutdown，它就不会停止，因为要等待新的learner节点连接.
     class LearnerCnxAcceptor extends ZooKeeperCriticalThread {
 
         private final AtomicBoolean stop = new AtomicBoolean(false);
@@ -460,6 +461,7 @@ public class Leader extends LearnerMaster {
                 CountDownLatch latch = new CountDownLatch(serverSockets.size());
 
                 // 开启一个线程监听socket连接，线程类LearnerCnxAcceptorHandler
+                // 大部分情况下只有一个地址，有时候可能会配置多个端口：leader配置多个端口（地址），供其他follow连接
                 serverSockets.forEach(serverSocket ->
                         executor.submit(new LearnerCnxAcceptorHandler(serverSocket, latch)));
 
@@ -724,8 +726,10 @@ public class Leader extends LearnerMaster {
                 return;
             }
 
-            // Leader和其他节点完成了数据同步后，就要初始化服务器了，要准备接收客户端请求了
-            // 这里会启动ReqeustProcessor线程，然后就可以处理客户端请求了
+            /**
+             * Leader和其他节点完成了数据同步后，就要初始化服务器了，要准备接收客户端请求了
+             * 这里会启动ReqeustProcessor线程，然后就可以处理客户端请求了
+             */
             startZkServer();
 
             /**
@@ -749,7 +753,7 @@ public class Leader extends LearnerMaster {
             if (!System.getProperty("zookeeper.leaderServes", "yes").equals("no")) {
                 self.setZooKeeperServer(zk);
             }
-
+            // leader 启动完毕  ，改为广播状态
             self.setZabState(QuorumPeer.ZabState.BROADCAST);
             self.adminServer.setZooKeeperServer(zk);
 
@@ -1607,7 +1611,10 @@ public class Leader extends LearnerMaster {
         }
 
         leaderStartTime = Time.currentElapsedTime();
-        // LeaderZooKeeperServer.startup()
+        /**
+         * 启动LeaderZooKeeperServer
+         * 既有LeaderZooKeeperServer自定义的实现，也有父类ZooKeeperServer的默认实现
+         */
         zk.startup();
         /*
          * Update the election vote here to ensure that all members of the
