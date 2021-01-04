@@ -30,7 +30,7 @@ import org.apache.zookeeper.server.ZooKeeperServerBean;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 
 /**
- * Parent class for all ZooKeeperServers for Learners。
+ * Parent class for all ZooKeeperServers for Learners
  */
 public abstract class LearnerZooKeeperServer extends QuorumZooKeeperServer {
 

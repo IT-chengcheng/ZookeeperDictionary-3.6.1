@@ -94,7 +94,7 @@ public class Observer extends Learner {
     }
 
     /**
-     * the main method called by the observer to observe the leader
+     * the main method called by the observer to observe the leader。
      * @throws Exception
      */
     void observeLeader() throws Exception {
@@ -116,7 +116,10 @@ public class Observer extends Learner {
                 self.setLeaderAddressAndId(master.addr, master.getId());
                 self.setZabState(QuorumPeer.ZabState.SYNCHRONIZATION);
 
-                // 会和Leader同步数据，同步数据完了之后，会启动RequestProcessor线程，从而可以接收客户端数据
+                /**
+                 *  1、Leader同步数据
+                 *  2、启动Observer  ： RequestProcessor线程，从而可以接收客户端数据
+                 */
                 syncWithLeader(newLeaderZxid);
 
                 self.setZabState(QuorumPeer.ZabState.BROADCAST);
